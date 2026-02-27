@@ -1,0 +1,3 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sidebar_text_color VARCHAR(20) DEFAULT '#64748b';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sidebar_icon_color VARCHAR(20) DEFAULT '#94a3b8';
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sidebar_font_weight VARCHAR(10) DEFAULT 'normal';

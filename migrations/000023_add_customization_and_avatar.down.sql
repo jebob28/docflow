@@ -1,0 +1,5 @@
+ALTER TABLE users DROP COLUMN IF EXISTS avatar_url;
+ALTER TABLE tenants DROP COLUMN IF EXISTS custom_settings;
+ALTER TABLE tenants DROP COLUMN IF EXISTS logo_url;
+ALTER TABLE tenants DROP COLUMN IF EXISTS secondary_color;
+ALTER TABLE tenants DROP COLUMN IF EXISTS primary_color;

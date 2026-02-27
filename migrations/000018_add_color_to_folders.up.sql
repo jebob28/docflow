@@ -1,0 +1,1 @@
+ALTER TABLE folders ADD COLUMN color VARCHAR(20) DEFAULT '#f59e0b';
