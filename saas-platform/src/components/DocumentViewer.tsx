@@ -15,7 +15,11 @@ import {
   Highlighter,
   Type as FontIcon,
   Palette,
-  Loader2
+  Loader2,
+  History,
+  FileUp,
+  Clock,
+  Info
 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -25,6 +29,7 @@ import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -50,11 +55,24 @@ interface Annotation {
   created_at?: string;
 }
 
+interface DocumentVersion {
+  id: string;
+  version_number: number;
+  minio_key: string;
+  size_bytes: number;
+  created_at: string;
+  created_by_name: string;
+  change_summary: string;
+}
+
 interface DocumentViewerProps {
   documentId: string;
   documentName: string;
   fileUrl: string;
   canEdit?: boolean;
+  documentType?: string;
+  ocrText?: string;
+  ocrProcessedAt?: string;
   onClose: () => void;
 }
 
@@ -63,6 +81,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   documentName, 
   fileUrl, 
   canEdit = false,
+  documentType,
+  ocrText,
+  ocrProcessedAt,
   onClose 
 }) => {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -70,12 +91,41 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(100);
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [selectedType, setSelectedType] = useState<'post-it' | 'text' | 'highlighter'>('post-it');
   const [draggingNoteId, setDraggingNoteId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [annotationToDelete, setAnnotationToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versions, setVersions] = useState<DocumentVersion[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [activeTab, setActiveTab] = useState<'document' | 'ocr'>('document');
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const fetchVersions = useCallback(async () => {
+    setIsLoadingVersions(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/documents/${documentId}/versions`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setVersions(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar versões:', error);
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  }, [documentId]);
+
+  useEffect(() => {
+    if (showVersions) {
+      fetchVersions();
+    }
+  }, [showVersions, fetchVersions]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -144,13 +194,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           page_number: currentPage,
           pos_x: x,
           pos_y: y,
-          width: 200,
-          height: 150,
-          content: 'Nova nota...',
-          color: '#fef3c7',
+          width: selectedType === 'post-it' ? 200 : selectedType === 'text' ? 150 : 100,
+          height: selectedType === 'post-it' ? 150 : selectedType === 'text' ? 40 : 20,
+          content: selectedType === 'post-it' ? 'Nova nota...' : selectedType === 'text' ? 'Novo texto...' : '',
+          color: selectedType === 'post-it' ? '#fef3c7' : selectedType === 'text' ? 'transparent' : '#fef08a',
           is_private: false,
           font_family: 'Inter',
-          annotation_type: 'post-it'
+          annotation_type: selectedType
         })
       });
 
@@ -273,25 +323,39 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   };
 
-  const handleDownloadFile = async () => {
+  const handleDownloadFile = async (original: boolean = false) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/documents/${documentId}`, {
+      let url = `/api/v1/documents/${documentId}`;
+      if (original) {
+        url += '?original=true';
+      }
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
       if (response.ok) {
+        const disposition = response.headers.get('Content-Disposition');
+        let fileName = documentName;
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename="(.+)"/);
+          if (match && match[1]) fileName = match[1];
+        }
+
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const urlBlob = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = documentName;
+        a.href = urlBlob;
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
-        toast.success("Download iniciado!");
+        window.URL.revokeObjectURL(urlBlob);
+        toast.success(original ? "Download do original iniciado!" : "Download iniciado!");
+      } else if (response.status === 403) {
+        toast.error("Sem permissão para baixar o original.");
       } else {
         toast.error("Erro ao baixar arquivo.");
       }
@@ -401,9 +465,44 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           >
             <ChevronLeft className="h-6 w-6 text-slate-900" />
           </Button>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest leading-none mb-1">Visualizando</span>
-            <h2 className="text-sm sm:text-lg font-extrabold text-slate-900 leading-none truncate max-w-[150px] sm:max-w-md">{documentName}</h2>
+          <div className="flex-1 min-w-0 flex items-center gap-4">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest leading-none">Visualizando</span>
+                {documentType && (
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[8px] font-black uppercase tracking-widest border border-blue-100">
+                    {documentType}
+                  </span>
+                )}
+                {ocrProcessedAt && (
+                  <span className="flex items-center gap-1 text-green-600 bg-green-50 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border border-green-100">
+                    OCR CONCLUÍDO
+                  </span>
+                )}
+              </div>
+              <h2 className="text-sm sm:text-lg font-extrabold text-slate-900 leading-none truncate max-w-[150px] sm:max-w-md">{documentName}</h2>
+            </div>
+
+            {/* Tabs */}
+            <div className="hidden md:flex items-center bg-slate-100 p-1 rounded-xl gap-1 ml-4">
+              <Button 
+                variant={activeTab === 'document' ? 'default' : 'ghost'} 
+                size="sm"
+                className={cn("h-8 rounded-lg text-xs font-bold", activeTab === 'document' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                onClick={() => setActiveTab('document')}
+              >
+                Documento
+              </Button>
+              <Button 
+                variant={activeTab === 'ocr' ? 'default' : 'ghost'} 
+                size="sm"
+                className={cn("h-8 rounded-lg text-xs font-bold", activeTab === 'ocr' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                onClick={() => setActiveTab('ocr')}
+                disabled={!ocrText}
+              >
+                Texto Extraído (OCR)
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -422,7 +521,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             variant="ghost" 
             size="icon"
             className="rounded-full text-slate-900 h-9 w-9 lg:hidden"
-            onClick={handleDownloadFile}
+            onClick={() => handleDownloadFile(false)}
           >
             <Download className="h-5 w-5" />
           </Button>
@@ -430,10 +529,30 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           <Button 
             variant="outline" 
             className="hidden lg:flex rounded-full gap-2 border-slate-200 hover:bg-slate-50 font-bold"
-            onClick={handleDownloadFile}
+            onClick={() => setShowVersions(!showVersions)}
+          >
+            <History className="h-4 w-4" />
+            Histórico
+          </Button>
+
+          {canEdit && (
+            <Button 
+              variant="outline" 
+              className="hidden lg:flex rounded-full gap-2 border-slate-200 hover:bg-slate-50 font-bold"
+              onClick={() => handleDownloadFile(true)}
+            >
+              <Download className="h-4 w-4" />
+              Baixar Original
+            </Button>
+          )}
+
+          <Button 
+            variant="outline" 
+            className="hidden lg:flex rounded-full gap-2 border-slate-200 hover:bg-slate-50 font-bold"
+            onClick={() => handleDownloadFile(false)}
           >
             <Download className="h-4 w-4" />
-            Baixar Original
+            Baixar PDF
           </Button>
 
           {canEdit && (
@@ -449,170 +568,402 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Main Content Area */}
-        <div className="flex-1 relative overflow-auto bg-slate-50 flex justify-center p-4 sm:p-8 scrollbar-hide">
-          <div 
-            ref={containerRef}
-            className="relative bg-white shadow-2xl origin-top transition-transform duration-200 mb-20 sm:mb-20"
-            style={{ 
-              transform: `scale(${zoom / 100})`,
-              minWidth: 'fit-content',
-              maxWidth: '100%'
-            }}
-          >
-            {/* PDF Content */}
-            <Document
-              file={fileUrl}
-              onLoadSuccess={onDocumentLoadSuccess}
-              loading={
-                <div className="flex items-center justify-center p-20">
-                  <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-                </div>
-              }
-              error={
-                <div className="flex flex-col items-center justify-center p-20 text-red-500">
-                  <X className="h-10 w-10 mb-2" />
-                  <p>Erro ao carregar o PDF.</p>
-                </div>
-              }
-            >
-              <Page 
-                pageNumber={currentPage} 
-                renderAnnotationLayer={false}
-                renderTextLayer={false}
-                loading={null}
-                width={window.innerWidth < 640 ? window.innerWidth - 32 : undefined}
-              />
-            </Document>
-
-            {/* Sticky Notes Overlay */}
-            <div 
-              className={`absolute inset-0 z-20 ${isAddingNote ? 'cursor-crosshair' : 'pointer-events-none'}`}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleDragEnd}
-              onMouseLeave={handleDragEnd}
-              onClick={(e) => {
-                if (isAddingNote) handleAddAnnotation(e);
+        {/* Annotation Toolbar (Desktop) */}
+        {canEdit && (
+          <div className="hidden lg:flex flex-col gap-2 p-2 bg-white border-r border-slate-200 z-30 shadow-sm">
+            <Button 
+              variant={isAddingNote && selectedType === 'post-it' ? 'default' : 'ghost'} 
+              size="icon" 
+              className={cn("h-10 w-10 rounded-xl", isAddingNote && selectedType === 'post-it' && "bg-blue-600")}
+              onClick={() => {
+                if (isAddingNote && selectedType === 'post-it') {
+                  setIsAddingNote(false);
+                } else {
+                  setIsAddingNote(true);
+                  setSelectedType('post-it');
+                }
               }}
-              style={{ pointerEvents: isAddingNote ? 'auto' : 'none' }}
+              title="Post-it"
             >
-              {annotations.filter(a => a.page_number === currentPage).map((note) => (
-                <div
-                  key={note.id}
-                  className={`absolute shadow-lg rounded-sm transition-all pointer-events-auto group ${
-                    draggingNoteId === note.id ? 'z-50 scale-105' : 'hover:scale-105'
-                  } ${
-                    note.annotation_type === 'post-it' ? 'p-4 border-l-4 rotate-1' : 
-                    note.annotation_type === 'highlighter' ? 'bg-opacity-50 blur-[1px]' : 'p-2'
-                  }`}
-                  style={{
-                    left: `${note.pos_x}%`,
-                    top: `${note.pos_y}%`,
-                    width: note.annotation_type === 'text' ? 'auto' : `${note.width}px`,
-                    height: note.annotation_type === 'text' ? 'auto' : `${note.height}px`,
-                    backgroundColor: note.color,
-                    borderColor: note.annotation_type === 'post-it' ? 'rgba(0,0,0,0.1)' : 'transparent',
-                    cursor: draggingNoteId === note.id ? 'grabbing' : 'move',
-                    fontFamily: note.font_family,
-                    minWidth: note.annotation_type === 'text' ? '100px' : 'none'
-                  }}
-                  onMouseDown={(e) => handleDragStart(e, note.id)}
-                >
-                  {note.annotation_type === 'post-it' && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 drop-shadow-md pointer-events-none group-hover:scale-110 transition-transform">
-                      <Pin className="h-6 w-6 text-red-600 fill-red-600 -rotate-45 drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)]" />
-                    </div>
-                  )}
-                  {canEdit && (
-                    <div className="flex items-center justify-between mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded px-1">
-                      <div className="flex items-center gap-1">
-                        {/* Color Picker */}
-                        <div className="relative group/colors">
-                          <Palette className="h-3 w-3 text-slate-500 cursor-pointer" />
-                          <div className="absolute top-full left-0 hidden group-hover/colors:flex bg-white shadow-xl rounded-lg p-1 gap-1 z-50 border border-slate-200">
-                            {COLOR_OPTIONS.map(c => (
-                              <div 
-                                key={c} 
-                                className="w-4 h-4 rounded-full border border-slate-200 cursor-pointer hover:scale-110" 
-                                style={{ backgroundColor: c }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateAnnotation(note.id, { color: c });
-                                }}
-                              />
-                            ))}
-                          </div>
-                        </div>
+              <Pin className="h-5 w-5" />
+            </Button>
+            <Button 
+              variant={isAddingNote && selectedType === 'text' ? 'default' : 'ghost'} 
+              size="icon" 
+              className={cn("h-10 w-10 rounded-xl", isAddingNote && selectedType === 'text' && "bg-blue-600")}
+              onClick={() => {
+                if (isAddingNote && selectedType === 'text') {
+                  setIsAddingNote(false);
+                } else {
+                  setIsAddingNote(true);
+                  setSelectedType('text');
+                }
+              }}
+              title="Texto"
+            >
+              <Type className="h-5 w-5" />
+            </Button>
+            <Button 
+              variant={isAddingNote && selectedType === 'highlighter' ? 'default' : 'ghost'} 
+              size="icon" 
+              className={cn("h-10 w-10 rounded-xl", isAddingNote && selectedType === 'highlighter' && "bg-blue-600")}
+              onClick={() => {
+                if (isAddingNote && selectedType === 'highlighter') {
+                  setIsAddingNote(false);
+                } else {
+                  setIsAddingNote(true);
+                  setSelectedType('highlighter');
+                }
+              }}
+              title="Marca-texto"
+            >
+              <Highlighter className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
 
-                        {/* Font Picker */}
-                        <div className="relative group/fonts">
-                          <FontIcon className="h-3 w-3 text-slate-500 cursor-pointer" />
-                          <div className="absolute top-full left-0 hidden group-hover/fonts:flex flex-col bg-white shadow-xl rounded-lg p-1 z-50 border border-slate-200 min-w-[100px]">
-                            {FONT_OPTIONS.map(f => (
-                              <div 
-                                key={f.value} 
-                                className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer whitespace-nowrap"
-                                style={{ fontFamily: f.value }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateAnnotation(note.id, { font_family: f.value });
-                                }}
-                              >
-                                {f.label}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+        {/* Main Content Area */}
+        <div className="flex-1 relative overflow-hidden bg-slate-50 flex scrollbar-hide">
+          {activeTab === 'document' ? (
+            <div className="flex-1 overflow-auto flex justify-center p-4 sm:p-8 relative">
+            <div 
+              ref={containerRef}
+              className="relative bg-white shadow-2xl origin-top transition-transform duration-200 mb-20 sm:mb-20"
+              style={{ 
+                transform: `scale(${zoom / 100})`,
+                minWidth: 'fit-content',
+                maxWidth: '100%'
+              }}
+            >
+              {/* PDF Content */}
+              <Document
+                file={fileUrl}
+                onLoadSuccess={onDocumentLoadSuccess}
+                loading={
+                  <div className="flex items-center justify-center p-20">
+                    <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+                  </div>
+                }
+                error={
+                  <div className="flex flex-col items-center justify-center p-20 text-red-500">
+                    <X className="h-10 w-10 mb-2" />
+                    <p>Erro ao carregar o PDF.</p>
+                  </div>
+                }
+              >
+                <Page 
+                  pageNumber={currentPage} 
+                  renderAnnotationLayer={false}
+                  renderTextLayer={false}
+                  loading={null}
+                  width={window.innerWidth < 640 ? window.innerWidth - 32 : undefined}
+                />
+              </Document>
 
-                        {/* Type Picker */}
-                        <div className="relative group/types">
-                          <Type className="h-3 w-3 text-slate-500 cursor-pointer" />
-                          <div className="absolute top-full left-0 hidden group-hover/types:flex flex-col bg-white shadow-xl rounded-lg p-1 z-50 border border-slate-200 min-w-[100px]">
-                            <div className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleUpdateAnnotation(note.id, { annotation_type: 'post-it' }); }}>
-                              <div className="w-2 h-2 bg-yellow-200 border border-slate-300" /> Post-it
-                            </div>
-                            <div className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleUpdateAnnotation(note.id, { annotation_type: 'text', color: 'transparent' }); }}>
-                              <FontIcon className="h-2 w-2" /> Texto Livre
-                            </div>
-                            <div className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleUpdateAnnotation(note.id, { annotation_type: 'highlighter', color: '#fef08a' }); }}>
-                              <Highlighter className="h-2 w-2" /> Marca-texto
-                            </div>
-                          </div>
-                        </div>
+              {/* Sticky Notes Overlay */}
+              <div 
+                className={`absolute inset-0 z-20 ${isAddingNote ? 'cursor-crosshair' : 'pointer-events-none'}`}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+                onClick={(e) => {
+                  if (isAddingNote) handleAddAnnotation(e);
+                }}
+                style={{ pointerEvents: isAddingNote ? 'auto' : 'none' }}
+              >
+                {annotations.filter(a => a.page_number === currentPage).map((note) => (
+                  <div
+                    key={note.id}
+                    className={`absolute shadow-lg rounded-sm transition-all pointer-events-auto group ${
+                      draggingNoteId === note.id ? 'z-50 scale-105' : 'hover:scale-105'
+                    } ${
+                      note.annotation_type === 'post-it' ? 'p-4 border-l-4 rotate-1' : 
+                      note.annotation_type === 'highlighter' ? 'bg-opacity-50 blur-[1px]' : 'p-2'
+                    }`}
+                    style={{
+                      left: `${note.pos_x}%`,
+                      top: `${note.pos_y}%`,
+                      width: note.annotation_type === 'text' ? 'auto' : `${note.width}px`,
+                      height: note.annotation_type === 'text' ? 'auto' : `${note.height}px`,
+                      backgroundColor: note.color,
+                      borderColor: note.annotation_type === 'post-it' ? 'rgba(0,0,0,0.1)' : 'transparent',
+                      cursor: draggingNoteId === note.id ? 'grabbing' : 'move',
+                      fontFamily: note.font_family,
+                      minWidth: note.annotation_type === 'text' ? '100px' : 'none'
+                    }}
+                    onMouseDown={(e) => handleDragStart(e, note.id)}
+                  >
+                    {note.annotation_type === 'post-it' && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-30 drop-shadow-md pointer-events-none group-hover:scale-110 transition-transform">
+                        <Pin className="h-6 w-6 text-red-600 fill-red-600 -rotate-45 drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)]" />
                       </div>
+                    )}
+                    {canEdit && (
+                      <div className="flex items-center justify-between mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded px-1">
+                        <div className="flex items-center gap-1">
+                          {/* Color Picker */}
+                          <div className="relative group/colors">
+                            <Palette className="h-3 w-3 text-slate-500 cursor-pointer" />
+                            <div className="absolute top-full left-0 hidden group-hover/colors:flex bg-white shadow-xl rounded-lg p-1 gap-1 z-50 border border-slate-200">
+                              {COLOR_OPTIONS.map(c => (
+                                <div 
+                                  key={c} 
+                                  className="w-4 h-4 rounded-full border border-slate-200 cursor-pointer hover:scale-110" 
+                                  style={{ backgroundColor: c }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateAnnotation(note.id, { color: c });
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
 
-                      <Trash2 
-                        className="h-3 w-3 text-slate-400 cursor-pointer hover:text-rose-500" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteAnnotation(note.id);
+                          {/* Font Picker */}
+                          <div className="relative group/fonts">
+                            <FontIcon className="h-3 w-3 text-slate-500 cursor-pointer" />
+                            <div className="absolute top-full left-0 hidden group-hover/fonts:flex flex-col bg-white shadow-xl rounded-lg p-1 z-50 border border-slate-200 min-w-[100px]">
+                              {FONT_OPTIONS.map(f => (
+                                <div 
+                                  key={f.value} 
+                                  className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer whitespace-nowrap"
+                                  style={{ fontFamily: f.value }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateAnnotation(note.id, { font_family: f.value });
+                                  }}
+                                >
+                                  {f.label}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Type Picker */}
+                          <div className="relative group/types">
+                            <Type className="h-3 w-3 text-slate-500 cursor-pointer" />
+                            <div className="absolute top-full left-0 hidden group-hover/types:flex flex-col bg-white shadow-xl rounded-lg p-1 z-50 border border-slate-200 min-w-[100px]">
+                              <div className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleUpdateAnnotation(note.id, { annotation_type: 'post-it' }); }}>
+                                <div className="w-2 h-2 bg-yellow-200 border border-slate-300" /> Post-it
+                              </div>
+                              <div className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleUpdateAnnotation(note.id, { annotation_type: 'text', color: 'transparent' }); }}>
+                                <FontIcon className="h-2 w-2" /> Texto Livre
+                              </div>
+                              <div className="px-2 py-1 text-[10px] hover:bg-slate-100 cursor-pointer flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleUpdateAnnotation(note.id, { annotation_type: 'highlighter', color: '#fef08a' }); }}>
+                                <Highlighter className="h-2 w-2" /> Marca-texto
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Trash2 
+                          className="h-3 w-3 text-slate-400 cursor-pointer hover:text-rose-500" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAnnotation(note.id);
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {note.annotation_type === 'highlighter' ? (
+                      <div className="w-full h-full min-h-[20px]" />
+                    ) : (
+                      <textarea 
+                        className={`w-full h-full bg-transparent border-none resize-none text-sm font-medium focus:outline-none placeholder:text-slate-400 ${
+                          note.annotation_type === 'text' ? 'text-slate-900' : 'text-slate-700'
+                        }`}
+                        style={{ fontFamily: note.font_family }}
+                        defaultValue={note.content}
+                        readOnly={!canEdit}
+                        onBlur={(e) => {
+                          if (canEdit) handleUpdateAnnotation(note.id, { content: e.target.value });
                         }}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
                       />
-                    </div>
-                  )}
-
-                  {note.annotation_type === 'highlighter' ? (
-                    <div className="w-full h-full min-h-[20px]" />
-                  ) : (
-                    <textarea 
-                      className={`w-full h-full bg-transparent border-none resize-none text-sm font-medium focus:outline-none placeholder:text-slate-400 ${
-                        note.annotation_type === 'text' ? 'text-slate-900' : 'text-slate-700'
-                      }`}
-                      style={{ fontFamily: note.font_family }}
-                      defaultValue={note.content}
-                      readOnly={!canEdit}
-                      onBlur={(e) => {
-                        if (canEdit) handleUpdateAnnotation(note.id, { content: e.target.value });
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                    />
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 overflow-auto p-4 sm:p-8 flex justify-center bg-slate-50">
+              <div className="bg-white p-6 sm:p-10 shadow-xl rounded-2xl w-full max-w-4xl min-h-[80vh] border border-slate-200">
+                <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center shadow-sm">
+                      <Type className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tight">Texto Extraído via OCR</h3>
+                      <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Conteúdo Reconhecido</p>
+                    </div>
+                  </div>
+                  {ocrProcessedAt && (
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Processado em</p>
+                      <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                        <Clock className="h-3 w-3 text-slate-400" />
+                        <span className="text-sm font-bold text-slate-700">{new Date(ocrProcessedAt).toLocaleString('pt-BR')}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                  <div className="relative bg-white p-8 rounded-xl border border-slate-100 min-h-[60vh] whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-700 shadow-inner">
+                    {ocrText || "Nenhum texto extraído para este documento."}
+                  </div>
+                </div>
+
+                <div className="mt-10 p-5 bg-blue-50/50 rounded-2xl border border-blue-100/50 flex gap-4 items-start">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0 shadow-sm">
+                    <Info className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-blue-900 uppercase tracking-tight">Nota de Precisão</p>
+                    <p className="text-xs text-blue-700/80 leading-relaxed font-medium">
+                      O texto acima foi gerado automaticamente por inteligência artificial e pode conter imprecisões. 
+                      Este conteúdo é utilizado primariamente para indexação e facilitação de buscas no sistema.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Versions Sidebar */}
+          {showVersions && (
+            <div className="w-80 bg-white border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="font-extrabold text-slate-900 flex items-center gap-2">
+                  <History className="h-4 w-4 text-blue-600" />
+                  Histórico de Versões
+                </h3>
+                <Button variant="ghost" size="icon" onClick={() => setShowVersions(false)} className="h-8 w-8">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                  {canEdit && (
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start gap-2 border-dashed border-slate-300 text-slate-600 font-bold h-auto py-3 px-4 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = '.pdf';
+                        input.onchange = async (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) {
+                            const summary = prompt("Resumo da alteração (opcional):");
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('summary', summary || '');
+                            
+                            const token = localStorage.getItem('token');
+                            const toastId = toast.loading("Enviando nova versão...");
+                            try {
+                              const response = await fetch(`/api/v1/documents/${documentId}/versions`, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}` },
+                                body: formData
+                              });
+                              if (response.ok) {
+                                toast.success("Nova versão enviada!", { id: toastId });
+                                fetchVersions();
+                              } else {
+                                toast.error("Erro ao enviar versão", { id: toastId });
+                              }
+                            } catch {
+                              toast.error("Erro de conexão", { id: toastId });
+                            }
+                          }
+                        };
+                        input.click();
+                      }}
+                    >
+                      <FileUp className="h-4 w-4" />
+                      Upload Nova Versão
+                    </Button>
+                  )}
+
+                  {isLoadingVersions ? (
+                    <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                    </div>
+                  ) : versions.length === 0 ? (
+                    <p className="text-center text-slate-500 text-sm py-8">Nenhuma versão encontrada.</p>
+                  ) : (
+                    versions.map((v) => (
+                      <div key={v.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50 hover:border-blue-200 transition-all">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                            Versão {v.version_number}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(v.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-900 mb-1">{v.change_summary || 'Sem descrição'}</p>
+                        <p className="text-[10px] text-slate-500 mb-2">Por: {v.created_by_name || 'Desconhecido'}</p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="w-full h-7 text-[10px] font-bold text-blue-600 hover:bg-blue-100 hover:text-blue-700 p-0"
+                            onClick={() => window.open(`/api/v1/documents/${documentId}?version=${v.version_number}&token=${localStorage.getItem('token')}`, '_blank')}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Visualizar esta versão
+                          </Button>
+                          {canEdit && v.version_number !== versions[0]?.version_number && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="w-full h-7 text-[10px] font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 p-0 mt-1"
+                              onClick={async () => {
+                                if (confirm(`Deseja restaurar para a Versão ${v.version_number}? Uma nova versão será criada.`)) {
+                                  const token = localStorage.getItem('token');
+                                  const toastId = toast.loading("Restaurando versão...");
+                                  try {
+                                    const response = await fetch(`/api/v1/documents/${documentId}/restore`, {
+                                      method: 'POST',
+                                      headers: { 
+                                        'Authorization': `Bearer ${token}`,
+                                        'Content-Type': 'application/json'
+                                      },
+                                      body: JSON.stringify({ version_number: v.version_number })
+                                    });
+                                    if (response.ok) {
+                                      toast.success("Versão restaurada com sucesso!", { id: toastId });
+                                      fetchVersions();
+                                    } else {
+                                      toast.error("Erro ao restaurar versão", { id: toastId });
+                                    }
+                                  } catch {
+                                    toast.error("Erro de conexão", { id: toastId });
+                                  }
+                                }
+                              }}
+                            >
+                              <History className="h-3 w-3 mr-1" />
+                              Restaurar esta versão
+                            </Button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
 
         {/* Sidebar for annotations (Desktop only) */}
         <div className="hidden lg:flex w-80 bg-white border-l border-slate-200 flex-col shadow-xl">
@@ -721,14 +1072,41 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           <div className="w-px h-6 bg-slate-200 mx-1" />
 
           {canEdit && (
-            <Button 
-              variant={isAddingNote ? "default" : "ghost"} 
-              size="icon" 
-              className={`h-10 w-10 rounded-xl ${isAddingNote ? 'bg-blue-600' : ''}`}
-              onClick={() => setIsAddingNote(!isAddingNote)}
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
+            <>
+              <Button 
+                variant={isAddingNote && selectedType === 'post-it' ? "default" : "ghost"} 
+                size="icon" 
+                className={`h-10 w-10 rounded-xl ${isAddingNote && selectedType === 'post-it' ? 'bg-blue-600' : ''}`}
+                onClick={() => {
+                  if (isAddingNote && selectedType === 'post-it') setIsAddingNote(false);
+                  else { setIsAddingNote(true); setSelectedType('post-it'); }
+                }}
+              >
+                <Pin className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant={isAddingNote && selectedType === 'text' ? "default" : "ghost"} 
+                size="icon" 
+                className={`h-10 w-10 rounded-xl ${isAddingNote && selectedType === 'text' ? 'bg-blue-600' : ''}`}
+                onClick={() => {
+                  if (isAddingNote && selectedType === 'text') setIsAddingNote(false);
+                  else { setIsAddingNote(true); setSelectedType('text'); }
+                }}
+              >
+                <Type className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant={isAddingNote && selectedType === 'highlighter' ? "default" : "ghost"} 
+                size="icon" 
+                className={`h-10 w-10 rounded-xl ${isAddingNote && selectedType === 'highlighter' ? 'bg-blue-600' : ''}`}
+                onClick={() => {
+                  if (isAddingNote && selectedType === 'highlighter') setIsAddingNote(false);
+                  else { setIsAddingNote(true); setSelectedType('highlighter'); }
+                }}
+              >
+                <Highlighter className="h-5 w-5" />
+              </Button>
+            </>
           )}
 
           <Button 

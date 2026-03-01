@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/hashicorp/vault/api"
@@ -125,4 +129,41 @@ func (s *VaultService) DecryptData(ctx context.Context, tenantID string, ciphert
 	}
 
 	return plaintext, nil
+}
+
+// EncryptDataEnvelope usa o Vault Transit para criptografar uma chave local (DEK)
+// e criptografar os dados com essa DEK usando AES-GCM localmente.
+// Retorna (ciphertext, encryptedDEK, error)
+func (s *VaultService) EncryptDataEnvelope(ctx context.Context, tenantID string, plaintext []byte) ([]byte, []byte, error) {
+	// 1. Gerar uma DEK (Data Encryption Key) aleatória de 32 bytes (AES-256)
+	dek := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, dek); err != nil {
+		return nil, nil, fmt.Errorf("erro ao gerar DEK: %v", err)
+	}
+
+	// 2. Criptografar a DEK com o Vault Transit (Master Key do Tenant)
+	encryptedDEKString, err := s.EncryptData(ctx, tenantID, dek)
+	if err != nil {
+		return nil, nil, fmt.Errorf("erro ao criptografar DEK no vault: %v", err)
+	}
+	encryptedDEK := []byte(encryptedDEKString)
+
+	// 3. Criptografar os dados reais com a DEK localmente usando AES-GCM
+	block, err := aes.NewCipher(dek)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, err
+	}
+
+	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
+	return ciphertext, encryptedDEK, nil
 }

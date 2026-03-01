@@ -13,7 +13,9 @@ import {
   LogOut,
   Plus,
   Upload,
-  ScanLine
+  ScanLine,
+  Clock,
+  GitPullRequest
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -222,6 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setUserData(prev => ({
             ...prev,
             name: data.full_name,
+            role: data.role,
             avatar: data.avatar_url
           }));
         }
@@ -288,22 +291,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('customizationUpdated', handleCustomizationUpdated);
   }, []);
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-    { icon: Folder, label: 'Meus Arquivos', href: '/documents' },
-    { icon: Share2, label: 'Compartilhados', href: '/shared' },
-    { icon: Users, label: 'Gestão de Acessos', href: '/access-management' },
-    { icon: Trash2, label: 'Lixeira', href: '/trash' },
-  ];
+  const menuItems = React.useMemo(() => {
+    const items = [
+      { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+      { icon: Folder, label: 'Meus Arquivos', href: '/documents' },
+      { icon: Share2, label: 'Compartilhados', href: '/shared' },
+      ...(isPWA ? [{ icon: ScanLine, label: 'Digitalização', href: '/scanner' }] : []),
+      { icon: Clock, label: 'Temporalidade', href: '/retention' },
+      { icon: GitPullRequest, label: 'Workflow', href: '/workflows' },
+      { icon: Users, label: 'Gestão de Acessos', href: '/access-management' },
+      { icon: Trash2, label: 'Lixeira', href: '/trash' },
+    ];
 
-  const bottomNavItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-    { icon: Folder, label: 'Arquivos', href: '/documents' },
-    ...(isPWA ? [{ icon: ScanLine, label: 'Scanner', href: '/scanner' }] : []),
-    { icon: Share2, label: 'Compart.', href: '/shared' },
-    ...(!isPWA ? [{ icon: Users, label: 'Acessos', href: '/access-management' }] : []),
-    { icon: Settings, label: 'Config.', href: isPWA ? '/settings' : '/config' },
-  ];
+    // Filtragem baseada em Role
+    const userRole = userData.role?.toUpperCase();
+    
+    // Usuário básico não vê gestão de acessos nem compartilhados (se "não compartilha" implica não ver a área)
+    if (userRole === 'USER') {
+      return items.filter(item => 
+        item.href !== '/access-management' && 
+        item.href !== '/shared' &&
+        item.href !== '/retention'
+      );
+    }
+
+    // Gestor vê tudo exceto o que for exclusivo de Admin (se houver)
+    // No momento, Gestor pode ver Gestão de Acessos pois ele "cria usuário"
+    
+    return items;
+  }, [isPWA, userData.role]);
+
+  const bottomNavItems = React.useMemo(() => {
+    const items = [
+      { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+      { icon: Folder, label: 'Arquivos', href: '/documents' },
+      ...(isPWA ? [{ icon: ScanLine, label: 'Scanner', href: '/scanner' }] : []),
+      { icon: Share2, label: 'Compart.', href: '/shared' },
+      ...(!isPWA ? [{ icon: Users, label: 'Acessos', href: '/access-management' }] : []),
+    ];
+
+    // Filtragem baseada em Role para mobile
+    const userRole = userData.role?.toUpperCase();
+    if (userRole === 'USER') {
+      return items.filter(item => 
+        item.href !== '/access-management' && 
+        item.href !== '/shared' &&
+        item.href !== '/settings' &&
+        item.href !== '/config'
+      );
+    }
+
+    return items;
+  }, [isPWA, userData.role]);
 
   const sidebarContent = (
     <div
@@ -349,20 +388,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       <div className="p-4 border-t space-y-1" style={{ borderColor: sidebarAdvanced.border_color }}>
-        <Link to="/settings">
-          <div className={cn(
-            "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all",
-            location.pathname === '/settings' ? "bg-[var(--sidebar-active-bg)]" : "hover:bg-[var(--sidebar-hover-bg)]"
-          )} style={{
-            color: customization.sidebar_text_color,
-            fontWeight: customization.sidebar_font_weight === 'bold' ? 700 : 400,
-            '--sidebar-active-bg': sidebarAdvanced.settings_active_bg,
-            '--sidebar-hover-bg': sidebarAdvanced.settings_hover_bg
-          } as React.CSSProperties}>
-            <Settings className="h-4.5 w-4.5" style={{ color: customization.sidebar_icon_color }} />
-            <span className="text-sm">Configurações</span>
-          </div>
-        </Link>
+        {userData.role?.toUpperCase() !== 'USER' && (
+          <Link to="/settings">
+            <div className={cn(
+              "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all",
+              location.pathname === '/settings' ? "bg-[var(--sidebar-active-bg)]" : "hover:bg-[var(--sidebar-hover-bg)]"
+            )} style={{
+              color: customization.sidebar_text_color,
+              fontWeight: customization.sidebar_font_weight === 'bold' ? 700 : 400,
+              '--sidebar-active-bg': sidebarAdvanced.settings_active_bg,
+              '--sidebar-hover-bg': sidebarAdvanced.settings_hover_bg
+            } as React.CSSProperties}>
+              <Settings className="h-4.5 w-4.5" style={{ color: customization.sidebar_icon_color }} />
+              <span className="text-sm">Configurações</span>
+            </div>
+          </Link>
+        )}
         
         <button 
           onClick={handleLogout}

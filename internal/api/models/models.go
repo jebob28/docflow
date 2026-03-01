@@ -19,6 +19,11 @@ type Tenant struct {
 	PrivacyPolicyAccepted       bool      `json:"privacy_policy_accepted"`
 	PrivacyPolicyAcceptedAt     *time.Time `json:"privacy_policy_accepted_at"`
 	Active                      bool      `json:"active"`
+	WatermarkText               string    `json:"watermark_text"`
+	WatermarkSize               int       `json:"watermark_size"`
+	WatermarkOffsetY            int       `json:"watermark_offset_y"`
+	WatermarkRotation           int       `json:"watermark_rotation"`
+	WatermarkOpacity            int       `json:"watermark_opacity"`
 	CreatedAt                   time.Time `json:"created_at"`
 	UpdatedAt                   time.Time `json:"updated_at"`
 }

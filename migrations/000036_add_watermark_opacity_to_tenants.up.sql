@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS watermark_opacity INTEGER DEFAULT 20;

@@ -47,6 +47,11 @@ interface AccountSettings {
   confidential_required: boolean;
   confidential_password: string;
   confidential_password_configured: boolean;
+  watermark_text: string;
+  watermark_size: number;
+  watermark_offset_y: number;
+  watermark_rotation: number;
+  watermark_opacity: number;
 }
 
 interface TeamMember {
@@ -85,10 +90,11 @@ export default function Settings() {
     custom_settings: '{}'
   });
   const [account, setAccount] = useState<AccountSettings>({
-    name: '', corporate_email: '', phone: '', address: '', account_settings: '{}', confidential_required: false, confidential_password: '', confidential_password_configured: false
+    name: '', corporate_email: '', phone: '', address: '', account_settings: '{}', confidential_required: false, confidential_password: '', confidential_password_configured: false, watermark_text: '', watermark_size: 80, watermark_offset_y: 0, watermark_rotation: 45, watermark_opacity: 20
   });
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [mfaSecret, setMfaSecret] = useState('');
@@ -167,6 +173,7 @@ export default function Settings() {
 
       if (pRes.ok) {
         const data = await pRes.json();
+        setUserRole(data.role || '');
         setProfile({
           full_name: data.full_name || '',
           email: data.email || '',
@@ -201,7 +208,9 @@ export default function Settings() {
           account_settings: data.account_settings || '{}',
           confidential_required: !!data.confidential_required,
           confidential_password: '',
-          confidential_password_configured: !!data.confidential_password_configured
+          confidential_password_configured: !!data.confidential_password_configured,
+          watermark_text: data.watermark_text || '',
+          watermark_size: data.watermark_size || 80
         });
       }
       
@@ -284,7 +293,9 @@ export default function Settings() {
         address: account.address,
         account_settings: account.account_settings,
         confidential_required: account.confidential_required,
-        confidential_password: account.confidential_password
+        confidential_password: account.confidential_password,
+        watermark_text: account.watermark_text,
+        watermark_size: account.watermark_size
       };
       const res = await fetch('/api/v1/account', {
         method: 'PUT',
@@ -647,6 +658,22 @@ export default function Settings() {
     </div>
   );
 
+  const tabs = useMemo(() => {
+    const role = userRole.toUpperCase();
+    if (role === 'ADMIN' || role === 'MASTER') {
+      return ['Perfil', 'Conta', 'Notificações', 'Segurança', 'Equipe', 'Personalização'];
+    }
+    if (role === 'GESTOR') {
+      return ['Perfil', 'Conta', 'Notificações', 'Segurança'];
+    }
+    return ['Perfil', 'Notificações', 'Segurança'];
+  }, [userRole]);
+
+  const canManageSystem = useMemo(() => {
+    const role = userRole.toUpperCase();
+    return role === 'ADMIN' || role === 'MASTER';
+  }, [userRole]);
+
   if (loading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
 
   return (
@@ -660,7 +687,7 @@ export default function Settings() {
         <div className="sticky top-0 z-20 bg-[#f8fafc]/95 backdrop-blur-xl border-b border-slate-100 mb-6 sm:mb-8">
           <div className="max-w-6xl mx-auto">
             <TabsList className="bg-transparent w-full justify-start h-auto p-0 gap-6 sm:gap-8 rounded-none overflow-x-auto no-scrollbar flex-nowrap whitespace-nowrap px-4 sm:px-0">
-              {['Perfil', 'Conta', 'Notificações', 'Segurança', 'Equipe', 'Personalização'].map((tab) => (
+              {tabs.map((tab) => (
                 <TabsTrigger 
                   key={tab}
                   value={tab.toLowerCase()} 
@@ -823,32 +850,36 @@ export default function Settings() {
                   <Label className="text-sm font-bold text-slate-700 ml-1">Nome da Empresa</Label>
                   <Input 
                     value={account.name} 
+                    disabled={!canManageSystem}
                     onChange={e => setAccount({...account, name: e.target.value})}
-                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all"
+                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-70"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700 ml-1">E-mail Corporativo</Label>
                   <Input 
                     value={account.corporate_email} 
+                    disabled={!canManageSystem}
                     onChange={e => setAccount({...account, corporate_email: e.target.value})}
-                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all"
+                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-70"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700 ml-1">Telefone</Label>
                   <Input 
                     value={account.phone} 
+                    disabled={!canManageSystem}
                     onChange={e => setAccount({...account, phone: e.target.value})}
-                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all"
+                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-70"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-slate-700 ml-1">Endereço</Label>
                   <Input 
                     value={account.address} 
+                    disabled={!canManageSystem}
                     onChange={e => setAccount({...account, address: e.target.value})}
-                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all"
+                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-primary/10 transition-all disabled:opacity-70"
                   />
                 </div>
               </div>
@@ -891,6 +922,166 @@ export default function Settings() {
                 />
                 <p className="text-[10px] text-slate-400 font-medium ml-1">
                   {account.confidential_password_configured ? 'Senha já configurada para este tenant.' : 'Nenhuma senha configurada.'}
+                </p>
+              </div>
+              
+              <div className="space-y-2 pt-2">
+                <Label className="text-sm font-bold text-slate-700 ml-1">Texto da Marca d'água</Label>
+                <div className="relative group">
+                  <TextQuote className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+                  <Input 
+                    value={account.watermark_text}
+                    onChange={e => setAccount({...account, watermark_text: e.target.value})}
+                    className="h-12 bg-slate-50 border-none rounded-xl font-bold text-slate-700 pl-11 focus:ring-2 focus:ring-primary/10 transition-all"
+                    placeholder="Ex: CONFIDENCIAL - [NOME EMPRESA]"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium ml-1 leading-relaxed">
+                  Este texto aparecerá em diagonal nos arquivos PDF marcados como confidenciais.
+                </p>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between ml-1">
+                  <Label className="text-sm font-bold text-slate-700">Tamanho da Marca d'água</Label>
+                  <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_size}%</span>
+                </div>
+                <div className="px-1">
+                  <input 
+                    type="range" 
+                    min="10" 
+                    max="1000" 
+                    step="5"
+                    value={account.watermark_size}
+                    onChange={e => setAccount({...account, watermark_size: parseInt(e.target.value)})}
+                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                  />
+                  <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                    <span>Pequeno</span>
+                    <span>Padrão (80%)</span>
+                    <span>Massivo (1000%)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between ml-1">
+                  <Label className="text-sm font-bold text-slate-700">Posição Vertical (Altura)</Label>
+                  <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_offset_y || 0}px</span>
+                </div>
+                <div className="px-1">
+                  <input 
+                    type="range" 
+                    min="-1500" 
+                    max="1500" 
+                    step="10"
+                    value={account.watermark_offset_y || 0}
+                    onChange={e => setAccount({...account, watermark_offset_y: parseInt(e.target.value)})}
+                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                  />
+                  <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                    <span>Inferior</span>
+                    <span>Centro (0)</span>
+                    <span>Superior</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between ml-1">
+                  <Label className="text-sm font-bold text-slate-700">Rotação do Texto</Label>
+                  <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_rotation || 45}°</span>
+                </div>
+                <div className="px-1">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="360" 
+                    step="1"
+                    value={account.watermark_rotation || 45}
+                    onChange={e => setAccount({...account, watermark_rotation: parseInt(e.target.value)})}
+                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                  />
+                  <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                     <span>Horizontal (0°)</span>
+                     <span>Padrão (45°)</span>
+                     <span>Vertical (90°)</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div className="space-y-4 pt-2">
+                 <div className="flex items-center justify-between ml-1">
+                   <Label className="text-sm font-bold text-slate-700">Opacidade (Claro/Escuro)</Label>
+                   <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_opacity || 20}%</span>
+                 </div>
+                 <div className="px-1">
+                   <input 
+                     type="range" 
+                     min="5" 
+                     max="100" 
+                     step="1"
+                     value={account.watermark_opacity || 20}
+                     onChange={e => setAccount({...account, watermark_opacity: parseInt(e.target.value)})}
+                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                   />
+                   <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                     <span>Muito Claro</span>
+                     <span>Sutil (20%)</span>
+                     <span>Escuro (100%)</span>
+                   </div>
+                 </div>
+               </div>
+
+              {/* Preview da Marca d'água A4 */}
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between ml-1">
+                  <Label className="text-sm font-bold text-slate-700">Prévia Visual (Formato A4)</Label>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">Proporção Real</span>
+                </div>
+                
+                <div className="flex justify-center bg-slate-50 py-8 rounded-2xl border border-slate-100">
+                  <div 
+                    className="relative bg-white shadow-2xl border border-slate-200 overflow-hidden flex items-center justify-center transition-all duration-300"
+                    style={{ 
+                      width: '210px', 
+                      height: '297px',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    {/* Fundo simulando um documento A4 */}
+                    <div className="absolute inset-6 space-y-3 opacity-5">
+                      {[...Array(15)].map((_, i) => (
+                        <div key={i} className="space-y-1">
+                          <div className="h-1 w-3/4 bg-slate-900 rounded"></div>
+                          <div className="h-1 w-full bg-slate-900 rounded"></div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* A Marca d'água Real */}
+                    <div 
+                      className="relative z-10 font-black text-slate-900 pointer-events-none select-none text-center whitespace-nowrap transition-all duration-500"
+                      style={{ 
+                        transform: `rotate(-${account.watermark_rotation || 45}deg) translateY(${(account.watermark_offset_y || 0) * -0.25}px)`,
+                        opacity: (account.watermark_opacity || 20) / 100,
+                        fontSize: `${(account.watermark_size || 80) * 0.25}px`,
+                        filter: 'grayscale(1)',
+                        letterSpacing: '-0.02em'
+                      }}
+                    >
+                      {account.watermark_text || 'CONFIDENCIAL'}
+                    </div>
+                    
+                    <div className="absolute top-4 left-4 w-8 h-1 bg-slate-100 rounded"></div>
+                    <div className="absolute bottom-4 right-4 text-[6px] font-bold text-slate-200 uppercase tracking-tighter">
+                      Página 1 de 1
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="text-[10px] text-slate-400 font-medium text-center italic leading-relaxed">
+                  A visualização acima simula uma folha A4. O tamanho da marca d'água é proporcional ao que será gerado no PDF final.
                 </p>
               </div>
             </CardContent>

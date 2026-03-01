@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS watermark_rotation INTEGER DEFAULT 45;

@@ -69,6 +69,7 @@ interface SharedFile {
   is_public?: boolean;
   link_id?: string;
   type?: 'document' | 'folder';
+  document_type?: string;
 }
 
 export default function SharedDocuments() {
@@ -227,6 +228,14 @@ export default function SharedDocuments() {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                   {format(new Date(doc.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                 </p>
+                {doc.document_type && (
+                  <>
+                    <div className="w-1 h-1 rounded-full bg-slate-300" />
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+                      {doc.document_type}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -493,6 +502,11 @@ export default function SharedDocuments() {
                           </p>
                           <div className="flex items-center gap-2">
                             <p className="text-[10px] font-bold text-slate-400">{formatSize(doc.size)}</p>
+                            {doc.document_type && (
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+                                {doc.document_type}
+                              </span>
+                            )}
                             {doc.tags && doc.tags.length > 0 && (
                               <div className="flex gap-1">
                                 {doc.tags.map((tag: Tag) => (
@@ -542,28 +556,42 @@ export default function SharedDocuments() {
                     <TableCell className="px-6 py-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all duration-300">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all duration-300 border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md">
                             <MoreVertical className="h-5 w-5" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52 rounded-xl border-slate-100 shadow-xl p-1 bg-white">
+                        <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-slate-100 bg-white animate-in fade-in zoom-in-95 duration-200">
+                            <div className="px-2 py-1.5 mb-1 border-b border-slate-50">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Opções</p>
+                            </div>
+
                             {activeTab === 'with-me' ? (
                               <>
                                 <DropdownMenuItem 
                                   onClick={() => handleView(doc)}
-                                  className="flex items-center gap-2 p-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-blue-600 font-medium cursor-pointer"
+                                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group"
                                 >
-                                  <Eye className="h-4 w-4" />
-                                  Visualizar
+                                  <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                    <Eye className="h-4 w-4 text-blue-500" />
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold">Visualizar</span>
+                                    <span className="text-[10px] text-slate-400">Abrir documento</span>
+                                  </div>
                                 </DropdownMenuItem>
                                 
                                 {doc.type !== 'folder' && (
                                   <DropdownMenuItem 
                                     onClick={() => handleDownload(doc)}
-                                    className="flex items-center gap-2 p-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-blue-600 font-medium cursor-pointer"
+                                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer group"
                                   >
-                                    <Download className="h-4 w-4" />
-                                    Download
+                                    <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+                                      <Download className="h-4 w-4 text-slate-600" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-bold">Download</span>
+                                      <span className="text-[10px] text-slate-400">Baixar arquivo</span>
+                                    </div>
                                   </DropdownMenuItem>
                                 )}
                               </>
@@ -571,37 +599,53 @@ export default function SharedDocuments() {
                               <>
                                 <DropdownMenuItem 
                                   onClick={() => handleRevoke(doc)}
-                                  className="flex items-center gap-2 p-2.5 rounded-lg text-rose-600 hover:bg-rose-50 font-medium cursor-pointer"
+                                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-600 hover:bg-rose-50 transition-all cursor-pointer group"
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                  Revogar Acesso
+                                  <div className="w-8 h-8 rounded-lg bg-rose-50/50 flex items-center justify-center group-hover:bg-rose-100 transition-colors">
+                                    <Trash2 className="h-4 w-4 text-rose-500" />
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold">Revogar Acesso</span>
+                                    <span className="text-[10px] text-rose-400/70">Remover compartilhamento</span>
+                                  </div>
                                 </DropdownMenuItem>
 
                                 {doc.is_public && (
                                   <DropdownMenuItem 
                                     onClick={() => copyPublicLink(doc)}
-                                    className="flex items-center gap-2 p-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-blue-600 font-medium cursor-pointer"
+                                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group"
                                   >
-                                    <ExternalLink className="h-4 w-4" />
-                                    Copiar Link Público
+                                    <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                      <ExternalLink className="h-4 w-4 text-blue-500" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-bold">Copiar Link</span>
+                                      <span className="text-[10px] text-slate-400">Link de acesso público</span>
+                                    </div>
                                   </DropdownMenuItem>
                                 )}
                               </>
                             )}
 
-                            <DropdownMenuSeparator className="bg-slate-50 my-1" />
-
                             {doc.can_edit && (
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  setSelectedDoc(doc);
-                                  setIsShareModalOpen(true);
-                                }}
-                                className="flex items-center gap-2 p-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-blue-600 font-medium cursor-pointer"
-                              >
-                                <Share2 className="h-4 w-4" />
-                                Gerenciar Acesso
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuSeparator className="bg-slate-50 my-1" />
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setSelectedDoc(doc);
+                                    setIsShareModalOpen(true);
+                                  }}
+                                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-[#1a355b] hover:bg-blue-50 transition-all cursor-pointer group"
+                                >
+                                  <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                    <Share2 className="h-4 w-4 text-blue-500" />
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold">Gerenciar Acesso</span>
+                                    <span className="text-[10px] text-slate-400">Editar permissões</span>
+                                  </div>
+                                </DropdownMenuItem>
+                              </>
                             )}
                           </DropdownMenuContent>
                       </DropdownMenu>
@@ -655,6 +699,7 @@ export default function SharedDocuments() {
           itemName={selectedDoc.type === 'folder' ? selectedDoc.name : `${selectedDoc.name}${selectedDoc.extension ? `.${selectedDoc.extension}` : ''}`}
           itemId={selectedDoc.id}
           isFolder={selectedDoc.type === 'folder'}
+          tags={selectedDoc.tags}
         />
       )}
 

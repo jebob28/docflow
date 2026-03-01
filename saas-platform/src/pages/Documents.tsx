@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
   FileText, 
   Share2, 
@@ -12,6 +13,7 @@ import {
   ChevronRight,
   ChevronDown,
   Plus,
+  Type,
   Upload,
   Loader2,
   CloudUpload,
@@ -24,6 +26,8 @@ import {
   MoreVertical,
   Pencil,
   Shield,
+  FileDown,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -74,6 +78,12 @@ interface Sector {
   permission_type?: string;
 }
 
+interface DocumentType {
+  id: string;
+  name: string;
+  retention_years: number;
+}
+
 interface Folder {
   id: string;
   name: string;
@@ -101,6 +111,19 @@ interface DocumentFile {
   tags?: Tag[];
   url?: string;
   can_edit?: boolean;
+  document_type?: string;
+  ocr_processed_at?: string;
+}
+
+interface DocumentVersion {
+  id: string;
+  version_number: number;
+  minio_key: string;
+  size_bytes: number;
+  created_at: string;
+  created_by: string;
+  change_summary: string;
+  document_type?: string;
 }
 
 interface Stats {
@@ -112,9 +135,12 @@ interface Stats {
 type Item = (Folder & { itemType: 'folder' }) | (DocumentFile & { itemType: 'file' });
 
 export default function Documents() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilterSectorId, setSelectedFilterSectorId] = useState<string>('all');
@@ -131,6 +157,7 @@ export default function Documents() {
   const [selectedFiles, setSelectedFiles] = useState<Array<{ file: File; status: 'pending' | 'uploading' | 'completed' | 'error'; progress: number; id: string }>>([]);
   const [selectedSectorId, setSelectedSectorId] = useState<string>('');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+  const [selectedDocumentTypeId, setSelectedDocumentTypeId] = useState<string>('');
   const [viewMode] = useState<'list' | 'grid'>('grid');
   const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -144,7 +171,15 @@ export default function Documents() {
   }, []);
 
   // Estados para Visualização e Etiquetas
-  const [viewerDoc, setViewerDoc] = useState<{ id: string, name: string, url: string, can_edit?: boolean } | null>(null);
+  const [viewerDoc, setViewerDoc] = useState<{ 
+    id: string, 
+    name: string, 
+    url: string, 
+    can_edit?: boolean, 
+    document_type?: string,
+    ocr_text?: string,
+    ocr_processed_at?: string
+  } | null>(null);
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
   const [selectedItemForTags, setSelectedItemForTags] = useState<Item | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -156,30 +191,117 @@ export default function Documents() {
   const [newItemName, setNewItemName] = useState('');
   const [isConfidentialPromptOpen, setIsConfidentialPromptOpen] = useState(false);
   const [confidentialPassword, setConfidentialPassword] = useState('');
-  const [confidentialAction, setConfidentialAction] = useState<'view' | 'download' | null>(null);
+  const [confidentialAction, setConfidentialAction] = useState<'view' | 'download' | 'download_original' | null>(null);
   const [confidentialItem, setConfidentialItem] = useState<Item | null>(null);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3b82f6');
 
+  // Estados para Versões
+  const [userRole, setUserRole] = useState<string>('');
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  const [selectedDocumentForVersions, setSelectedDocumentForVersions] = useState<DocumentFile | null>(null);
+  const [documentVersions, setDocumentVersions] = useState<DocumentVersion[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
   const [actionLoading, setActionLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  // Funções para Versões
+  const fetchVersions = async (docId: string) => {
+    setIsLoadingVersions(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/documents/${docId}/versions`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDocumentVersions(data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar versões:', error);
+      toast.error('Erro ao carregar histórico de versões');
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  };
+
+  const handleRestoreVersion = async (docId: string, versionNumber: number) => {
+    const toastId = toast.loading("Restaurando versão...");
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/documents/${docId}/restore`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ version_number: versionNumber })
+      });
+      if (response.ok) {
+        toast.success("Versão restaurada com sucesso!", { id: toastId });
+        fetchVersions(docId);
+        fetchData(); // Recarregar lista principal
+      } else {
+        toast.error("Erro ao restaurar versão", { id: toastId });
+      }
+    } catch {
+      toast.error("Erro de conexão", { id: toastId });
+    }
+  };
+
+  const handleDownloadVersion = async (docId: string, versionNumber: number, fileName: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/documents/${docId}?version=${versionNumber}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const urlBlob = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = urlBlob;
+        a.download = `v${versionNumber}-${fileName}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(urlBlob);
+        toast.success("Download da versão iniciado!");
+      } else {
+        toast.error("Erro ao baixar versão.");
+      }
+    } catch {
+      toast.error("Erro de conexão ao baixar versão.");
+    }
+  };
+
   // Helper para verificar permissão de escrita no contexto atual
   const canWriteInCurrentContext = () => {
-    if (currentFolder) {
-      return currentFolder.can_edit;
-    }
-    
-    if (selectedFilterSectorId !== 'all') {
-      const selectedSector = sectors.find(s => s.id === selectedFilterSectorId);
-      return selectedSector?.can_edit;
+    // Gestores e Admins sempre podem criar pastas ou upload se tiverem permissão no setor/pasta
+    const role = userRole.toUpperCase();
+    if (role === 'ADMIN' || role === 'MASTER' || role === 'GESTOR') {
+      if (currentFolder) return currentFolder.can_edit;
+      if (selectedFilterSectorId !== 'all') {
+        const selectedSector = sectors.find(s => s.id === selectedFilterSectorId);
+        return selectedSector?.can_edit;
+      }
+      return sectors.some(s => s.can_edit);
     }
 
-    // Se estiver na raiz e "Todos os Setores" estiver selecionado, 
-    // permitimos abrir o modal se o usuário for GESTOR em pelo menos um setor 
-    // ou se o backend permitir (o backend validará ao salvar)
-    return sectors.some(s => s.can_edit);
+    // Usuário básico pode fazer upload se tiver permissão de escrita (can_edit) no contexto atual
+    // Requisito: "upload de arquivo faz"
+    if (role === 'USER') {
+      if (currentFolder) return currentFolder.can_edit;
+      if (selectedFilterSectorId !== 'all') {
+        const selectedSector = sectors.find(s => s.id === selectedFilterSectorId);
+        return selectedSector?.can_edit;
+      }
+      // Se estiver na raiz sem setor selecionado, verificamos se ele tem permissão em algum setor
+      return sectors.some(s => s.can_edit);
+    }
+
+    return false;
   };
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -320,7 +442,23 @@ export default function Documents() {
 
   useEffect(() => {
     fetchTags();
+    fetchDocumentTypes();
   }, [fetchTags]);
+
+  const fetchDocumentTypes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/v1/document-types', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDocumentTypes(data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar tipos de documento:', error);
+    }
+  };
 
   useEffect(() => {
     const handleOpenMobileActions = () => {
@@ -394,14 +532,15 @@ export default function Documents() {
     setSelectedFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const fetchData = useCallback(async (sectorFilter?: string, folderId?: string, tagFilter?: string) => {
+  const fetchData = useCallback(async (sectorFilter?: string, folderId?: string, tagFilter?: string, search?: string) => {
     try {
       const token = localStorage.getItem('token');
       const currentSectorFilter = sectorFilter !== undefined ? sectorFilter : selectedFilterSectorId;
       const currentFolderId = folderId !== undefined ? folderId : selectedFolderId;
       const currentTagFilter = tagFilter !== undefined ? tagFilter : selectedFilterTagId;
+      const currentSearch = search !== undefined ? search : searchQuery;
       
-      let docsUrl = '/api/v1/documents';
+      let docsUrl = currentSearch ? '/api/v1/documents/search' : '/api/v1/documents';
       const params = new URLSearchParams();
       
       if (currentSectorFilter && currentSectorFilter !== 'all') {
@@ -414,6 +553,11 @@ export default function Documents() {
 
       if (currentTagFilter && currentTagFilter !== 'all') {
         params.append('tag_id', currentTagFilter);
+      }
+
+      if (currentSearch) {
+        params.append('q', currentSearch);
+        params.append('ocr', currentSearch); // Use OpenSearch for content
       }
 
       const queryString = params.toString();
@@ -432,26 +576,55 @@ export default function Documents() {
       
       if (docsResponse.ok) {
         const data = await docsResponse.json();
-        setFolders(data.folders || []);
-        setDocuments(data.documents || []);
-        setStats(data.stats || null);
+        // Se for uma busca, o formato pode ser apenas uma lista de documentos
+        if (Array.isArray(data)) {
+          setFolders([]);
+          setDocuments(data || []);
+          setStats(null);
+        } else {
+          setFolders(data.folders || []);
+          setDocuments(data.documents || []);
+          setStats(data.stats || null);
+        }
       }
 
       if (sectorsResponse.ok) {
         const sectorsData = await sectorsResponse.json();
         setSectors(sectorsData.sectors || []);
       }
+
+      // Buscar perfil para obter a role
+      const profileResponse = await fetch('/api/v1/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        setUserRole(profileData.role || '');
+      }
     } catch {
       // Silently fail
     } finally {
       setLoading(false);
     }
-  }, [selectedFilterSectorId, selectedFolderId, selectedFilterTagId]);
+  }, [selectedFilterSectorId, selectedFolderId, selectedFilterTagId, searchQuery]);
 
   useEffect(() => {
-    fetchData(selectedFilterSectorId, selectedFolderId, selectedFilterTagId);
-    fetchTags();
-  }, [selectedFilterSectorId, selectedFolderId, selectedFilterTagId, fetchData, fetchTags]);
+    const timer = setTimeout(() => {
+      fetchData(selectedFilterSectorId, selectedFolderId, selectedFilterTagId, searchQuery);
+    }, 300); // Debounce search
+    
+    return () => clearTimeout(timer);
+  }, [selectedFilterSectorId, selectedFolderId, selectedFilterTagId, searchQuery, fetchData]);
+
+  // Efeito para abrir documento via URL
+   useEffect(() => {
+     if (id && documents.length > 0) {
+       const doc = documents.find(d => d.id === id);
+       if (doc) {
+         handleView({ ...doc, itemType: 'file' });
+       }
+     }
+   }, [id, documents]);
 
   const navigateToFolder = (folder: Folder | null) => {
     if (!folder) {
@@ -548,6 +721,10 @@ export default function Documents() {
           formData.append('folder_id', selectedFolderId);
         }
 
+        if (selectedDocumentTypeId) {
+          formData.append('document_type_id', selectedDocumentTypeId);
+        }
+
         // Simulando progresso para o UI (já que fetch não suporta progresso nativo facilmente sem XHR)
         const progressInterval = setInterval(() => {
           setSelectedFiles(prev => prev.map(f => {
@@ -584,13 +761,21 @@ export default function Documents() {
       }
     }
 
-    const allCompleted = selectedFiles.every(f => f.status === 'completed' || f.status === 'error');
-    if (allCompleted) {
-      toast.success("Processo de upload finalizado!");
-      setIsUploadOpen(false);
-      setSelectedFiles([]);
-      setSelectedSectorId('');
-      fetchData();
+    // Verificar se pelo menos um arquivo foi concluído com sucesso
+    const hasSuccess = selectedFiles.some(f => f.status === 'completed');
+    const allFinished = selectedFiles.every(f => f.status === 'completed' || f.status === 'error');
+    
+    if (allFinished) {
+      if (hasSuccess) {
+        toast.success("Upload concluído com sucesso!");
+        setIsUploadOpen(false);
+        setSelectedFiles([]);
+        setSelectedSectorId('');
+        setSelectedDocumentTypeId('');
+        fetchData(); // Atualiza a lista de arquivos
+      } else {
+        toast.error("Falha ao realizar o upload dos arquivos.");
+      }
     }
     setActionLoading(false);
   };
@@ -622,12 +807,16 @@ export default function Documents() {
       if (providedPassword) {
         headers['X-Confidential-Password'] = providedPassword;
       }
-      const response = await fetch(`/api/v1/documents/${item.id}`, {
-        headers
-      });
+
+      // Fetch document details (OCR text, etc.) and file content in parallel
+      const [detailsResponse, fileResponse] = await Promise.all([
+        fetch(`/api/v1/documents/${item.id}/details`, { headers }),
+        fetch(`/api/v1/documents/${item.id}`, { headers })
+      ]);
       
-      if (response.ok) {
-        const blob = await response.blob();
+      if (fileResponse.ok) {
+        const details = detailsResponse.ok ? await detailsResponse.json() : {};
+        const blob = await fileResponse.blob();
         const url = window.URL.createObjectURL(blob);
         
         // Em vez de abrir nova aba, abrir o visualizador interno
@@ -635,9 +824,12 @@ export default function Documents() {
           id: item.id,
           name: item.name,
           url: url,
-          can_edit: item.can_edit
+          can_edit: details.can_edit || item.can_edit,
+          document_type: item.itemType === 'file' ? (details.document_type || item.document_type) : undefined,
+          ocr_text: details.ocr_text,
+          ocr_processed_at: details.ocr_processed_at
         });
-      } else if (response.status === 401) {
+      } else if (fileResponse.status === 401) {
         toast.error("Senha necessária ou incorreta.");
       } else if (response.status === 409) {
         toast.error("Senha confidencial não configurada.");
@@ -651,10 +843,10 @@ export default function Documents() {
     }
   };
 
-  const handleDownload = async (item: Item, providedPassword?: string) => {
+  const handleDownload = async (item: Item, providedPassword?: string, original: boolean = false) => {
     if (item.itemType === 'folder') return;
     if (!providedPassword && hasConfidentialTag(item)) {
-      openConfidentialPrompt(item, 'download');
+      openConfidentialPrompt(item, original ? 'download_original' : 'download');
       return;
     }
     setProcessingId(item.id);
@@ -666,20 +858,35 @@ export default function Documents() {
       if (providedPassword) {
         headers['X-Confidential-Password'] = providedPassword;
       }
-      const response = await fetch(`/api/v1/documents/${item.id}`, {
+      
+      let url = `/api/v1/documents/${item.id}`;
+      if (original) {
+        url += '?original=true';
+      }
+      
+      const response = await fetch(url, {
         headers
       });
       
       if (response.ok) {
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = item.name;
+        a.href = downloadUrl;
+        
+        // Obter o nome do arquivo do cabeçalho Content-Disposition se disponível
+        const disposition = response.headers.get('Content-Disposition');
+        let fileName = item.name;
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename="(.+)"/);
+          if (match && match[1]) fileName = match[1];
+        }
+        
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
-        toast.success("Download iniciado!");
+        window.URL.revokeObjectURL(downloadUrl);
+        toast.success(original ? "Download do original iniciado!" : "Download iniciado!");
       } else if (response.status === 401) {
         toast.error("Senha necessária ou incorreta.");
       } else if (response.status === 409) {
@@ -703,10 +910,13 @@ export default function Documents() {
     setConfidentialPassword('');
     setConfidentialItem(null);
     setConfidentialAction(null);
+    
     if (action === 'view') {
       await handleView(item, password);
+    } else if (action === 'download_original') {
+      await handleDownload(item, password, true);
     } else {
-      await handleDownload(item, password);
+      await handleDownload(item, password, false);
     }
   };
 
@@ -814,10 +1024,10 @@ export default function Documents() {
     });
   };
 
-  const filteredItems: Item[] = [
-    ...folders.map(f => ({ ...f, itemType: 'folder' as const })),
-    ...documents.map(d => ({ ...d, itemType: 'file' as const }))
-  ].filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredItems: Item[] = searchQuery 
+    ? [...folders.map(f => ({ ...f, itemType: 'folder' as const })), ...documents.map(d => ({ ...d, itemType: 'file' as const }))]
+    : [...folders.map(f => ({ ...f, itemType: 'folder' as const })), ...documents.map(d => ({ ...d, itemType: 'file' as const }))]
+        .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const DocumentCard = ({ item, idx }: { item: Item, idx: number }) => {
     const iconData = getFileIcon(item.itemType, item.itemType === 'file' ? item.extension : undefined);
@@ -852,39 +1062,116 @@ export default function Documents() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-slate-100 bg-white">
+                <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-slate-100 bg-white animate-in fade-in zoom-in-95 duration-200">
+                  <div className="px-2 py-1.5 mb-1 border-b border-slate-50">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Opções</p>
+                  </div>
+
                   {item.itemType === 'file' ? (
                     <>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleView(item); }} className="rounded-xl gap-3 py-2.5 cursor-pointer">
-                        <Eye className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-sm">Visualizar</span>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleView(item); }} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                          <Eye className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold">Visualizar</span>
+                          <span className="text-[10px] text-slate-400">Abrir documento</span>
+                        </div>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(item); }} className="rounded-xl gap-3 py-2.5 cursor-pointer">
-                        <Download className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-sm">Download</span>
+
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(item); }} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer group">
+                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+                          <Download className="h-4 w-4 text-slate-600" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold">Download</span>
+                          <span className="text-[10px] text-slate-400">Baixar arquivo</span>
+                        </div>
+                      </DropdownMenuItem>
+
+                      {item.can_edit && (
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload(item, undefined, true); }} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 transition-all cursor-pointer group">
+                          <div className="w-8 h-8 rounded-lg bg-orange-50/50 flex items-center justify-center group-hover:bg-orange-100 transition-colors">
+                            <FileDown className="h-4 w-4 text-orange-500" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold">Original</span>
+                            <span className="text-[10px] text-slate-400">Sem marca d'água</span>
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDocumentForVersions(item);
+                          fetchVersions(item.id);
+                          setIsVersionHistoryOpen(true);
+                        }}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-purple-600 hover:bg-purple-50 transition-all cursor-pointer group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-purple-50/50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                          <History className="h-4 w-4 text-purple-500" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold">Versões</span>
+                          <span className="text-[10px] text-slate-400">Histórico de edições</span>
+                        </div>
                       </DropdownMenuItem>
                     </>
                   ) : (
-                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigateToFolder(item); }} className="rounded-xl gap-3 py-2.5 cursor-pointer">
-                      <Folder className="h-4 w-4 text-slate-400" />
-                      <span className="font-semibold text-sm">Abrir Pasta</span>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigateToFolder(item); }} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                        <Folder className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold">Abrir Pasta</span>
+                        <span className="text-[10px] text-slate-400">Navegar no conteúdo</span>
+                      </div>
                     </DropdownMenuItem>
                   )}
+
+                  {item.can_edit && (
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedItemForShare(item);
+                        setIsShareModalOpen(true);
+                      }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-[#1a355b] hover:bg-blue-50 transition-all cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                        <Share2 className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold">Compartilhar</span>
+                        <span className="text-[10px] text-slate-400">Gerenciar acessos</span>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
+
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedItemForTags(item);
+                      fetchTags();
                       setIsTagsModalOpen(true);
                     }}
-                    className="rounded-xl gap-3 py-2.5 cursor-pointer"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer group"
                   >
-                    <TagIcon className="h-4 w-4 text-slate-400" />
-                    <span className="font-semibold text-sm">Etiquetas</span>
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50/50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
+                      <TagIcon className="h-4 w-4 text-indigo-500" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold">Etiquetas</span>
+                      <span className="text-[10px] text-slate-400">Organizar documento</span>
+                    </div>
                   </DropdownMenuItem>
+
                   {item.can_edit && (
                     <DropdownMenuItem 
                       onClick={(e) => {
@@ -893,28 +1180,56 @@ export default function Documents() {
                         setNewItemName(item.name);
                         setIsRenameModalOpen(true);
                       }}
-                      className="rounded-xl gap-3 py-2.5 cursor-pointer"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group"
                     >
-                      <Pencil className="h-4 w-4 text-slate-400" />
-                      <span className="font-semibold text-sm">Renomear</span>
+                      <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                        <Pencil className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold">Renomear</span>
+                        <span className="text-[10px] text-slate-400">Alterar identificação</span>
+                      </div>
                     </DropdownMenuItem>
                   )}
+
                   <DropdownMenuSeparator className="my-1 bg-slate-50" />
                   <DropdownMenuItem 
                     onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
-                    className="rounded-xl gap-3 py-2.5 cursor-pointer text-rose-600 focus:bg-rose-50 focus:text-rose-600"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-600 hover:bg-rose-50 transition-all cursor-pointer group"
                   >
-                    <Trash2 className="h-4 w-4 text-rose-400" />
-                    <span className="font-semibold text-sm">Excluir</span>
+                    <div className="w-8 h-8 rounded-lg bg-rose-50/50 flex items-center justify-center group-hover:bg-rose-100 transition-colors">
+                      <Trash2 className="h-4 w-4 text-rose-500" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold">Excluir</span>
+                      <span className="text-[10px] text-rose-400/70">Remover permanentemente</span>
+                    </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
 
             <div className="w-full space-y-1">
-              <p className="font-bold text-slate-700 text-[13px] truncate group-hover:text-[#1a355b] transition-colors px-1">
-                {item.name}
-              </p>
+              <div className="flex flex-col items-center gap-1">
+                <p className="font-bold text-slate-700 text-[13px] truncate group-hover:text-[#1a355b] transition-colors px-1 w-full">
+                  {item.name}
+                </p>
+                {item.itemType === 'file' && (
+                  <div className="flex items-center gap-1">
+                    {item.document_type && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-slate-100">
+                        {item.document_type}
+                      </span>
+                    )}
+                    {item.ocr_processed_at && (
+                      <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100" title="Texto Extraído (OCR)">
+                        <Type className="h-2 w-2" />
+                        <span className="text-[8px] font-black uppercase tracking-tighter">OCR</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="flex flex-col gap-1 items-center">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
                   {item.itemType === 'folder' 
@@ -1233,8 +1548,25 @@ export default function Documents() {
                                   </div>
                                 </div>
                                 <div className="min-w-0 flex flex-col gap-0.5">
-                                  <div className="font-semibold text-slate-700 text-[14px] group-hover:text-[#1a355b] transition-colors truncate max-w-[200px] sm:max-w-[350px] leading-tight">
-                                    {item.name}
+                                  <div className="flex items-center gap-2">
+                                    <div className="font-semibold text-slate-700 text-[14px] group-hover:text-[#1a355b] transition-colors truncate max-w-[200px] sm:max-w-[350px] leading-tight">
+                                      {item.name}
+                                    </div>
+                                    {item.itemType === 'file' && (
+                                      <div className="flex items-center gap-1.5">
+                                        {item.document_type && (
+                                          <span className="px-1.5 py-0.5 rounded bg-slate-100/50 text-slate-500 text-[9px] font-black uppercase tracking-widest border border-slate-200/50">
+                                            {item.document_type}
+                                          </span>
+                                        )}
+                                        {item.ocr_processed_at && (
+                                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100" title="Texto Extraído (OCR)">
+                                            <Type className="h-2.5 w-2.5" />
+                                            <span className="text-[9px] font-black uppercase tracking-tighter">OCR</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <span className="text-[10px] font-bold text-slate-400/70 uppercase tracking-wider">
@@ -1276,52 +1608,7 @@ export default function Documents() {
                               </span>
                             </TableCell>
                             <TableCell className="pr-6 text-right">
-                              <div className="flex items-center justify-end gap-0.5">
-                                {item.can_edit && (
-                                  <>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedItemForShare(item);
-                                        setIsShareModalOpen(true);
-                                      }}
-                                      title="Compartilhar"
-                                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-blue-50/50 transition-all"
-                                    >
-                                      <Share2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedItemForTags(item);
-                                        fetchTags();
-                                        setIsTagsModalOpen(true);
-                                      }}
-                                      title="Gerenciar Etiquetas"
-                                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all"
-                                    >
-                                      <TagIcon className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedItemForRename(item);
-                                        setNewItemName(item.name);
-                                        setIsRenameModalOpen(true);
-                                      }}
-                                      title="Renomear"
-                                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50/50 transition-all"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </>
-                                )}
+                              <div className="flex items-center justify-end gap-1.5">
                                 {item.itemType === 'file' && (
                                   <>
                                     <Button 
@@ -1333,12 +1620,12 @@ export default function Documents() {
                                       }}
                                       disabled={processingId === item.id}
                                       title="Visualizar"
-                                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50/50 transition-all"
+                                      className="h-8.5 w-8.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 shadow-sm hover:shadow-md"
                                     >
                                       {processingId === item.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : (
-                                        <Eye className="h-3.5 w-3.5" />
+                                        <Eye className="h-4 w-4" />
                                       )}
                                     </Button>
                                     <Button 
@@ -1350,30 +1637,152 @@ export default function Documents() {
                                       }}
                                       disabled={processingId === item.id}
                                       title="Download"
-                                      className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all"
+                                      className="h-8.5 w-8.5 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md"
                                     >
                                       {processingId === item.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : (
-                                        <Download className="h-3.5 w-3.5" />
+                                        <Download className="h-4 w-4" />
                                       )}
                                     </Button>
                                   </>
                                 )}
-                                {item.can_edit && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDelete(item);
-                                    }}
-                                    title="Excluir"
-                                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50/50 transition-all"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-8.5 w-8.5 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md"
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="px-2 py-1.5 mb-1">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ações Disponíveis</p>
+                                    </div>
+                                    
+                                    {item.can_edit && (
+                                      <>
+                                        <DropdownMenuItem 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedItemForShare(item);
+                                            setIsShareModalOpen(true);
+                                          }}
+                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-[#1a355b] hover:bg-blue-50 transition-all cursor-pointer group"
+                                        >
+                                          <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                            <Share2 className="h-4 w-4 text-blue-500" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-sm font-bold">Compartilhar</span>
+                                            <span className="text-[10px] text-slate-400">Gerenciar acessos</span>
+                                          </div>
+                                        </DropdownMenuItem>
+
+                                        <DropdownMenuItem 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedItemForTags(item);
+                                            fetchTags();
+                                            setIsTagsModalOpen(true);
+                                          }}
+                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer group"
+                                        >
+                                          <div className="w-8 h-8 rounded-lg bg-indigo-50/50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
+                                            <TagIcon className="h-4 w-4 text-indigo-500" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-sm font-bold">Etiquetas</span>
+                                            <span className="text-[10px] text-slate-400">Organizar documento</span>
+                                          </div>
+                                        </DropdownMenuItem>
+
+                                        <DropdownMenuItem 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedItemForRename(item);
+                                            setNewItemName(item.name);
+                                            setIsRenameModalOpen(true);
+                                          }}
+                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group"
+                                        >
+                                          <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                            <Pencil className="h-4 w-4 text-blue-500" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-sm font-bold">Renomear</span>
+                                            <span className="text-[10px] text-slate-400">Alterar identificação</span>
+                                          </div>
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+
+                                    {item.itemType === 'file' && (
+                                      <>
+                                        {item.can_edit && (
+                                          <DropdownMenuItem 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDownload(item, undefined, true);
+                                            }}
+                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 transition-all cursor-pointer group"
+                                          >
+                                            <div className="w-8 h-8 rounded-lg bg-orange-50/50 flex items-center justify-center group-hover:bg-orange-100 transition-colors">
+                                              <FileDown className="h-4 w-4 text-orange-500" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <span className="text-sm font-bold">Original</span>
+                                              <span className="text-[10px] text-slate-400">Sem marca d'água</span>
+                                            </div>
+                                          </DropdownMenuItem>
+                                        )}
+
+                                        <DropdownMenuItem 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedDocumentForVersions(item);
+                                            fetchVersions(item.id);
+                                            setIsVersionHistoryOpen(true);
+                                          }}
+                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-purple-600 hover:bg-purple-50 transition-all cursor-pointer group"
+                                        >
+                                          <div className="w-8 h-8 rounded-lg bg-purple-50/50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                                            <History className="h-4 w-4 text-purple-500" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-sm font-bold">Versões</span>
+                                            <span className="text-[10px] text-slate-400">Histórico de edições</span>
+                                          </div>
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+
+                                    {item.can_edit && (
+                                      <>
+                                        <DropdownMenuSeparator className="my-2 bg-slate-50" />
+                                        <DropdownMenuItem 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDelete(item);
+                                          }}
+                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-600 hover:bg-rose-50 transition-all cursor-pointer group"
+                                        >
+                                          <div className="w-8 h-8 rounded-lg bg-rose-50/50 flex items-center justify-center group-hover:bg-rose-100 transition-colors">
+                                            <Trash2 className="h-4 w-4 text-rose-500" />
+                                          </div>
+                                          <div className="flex flex-col">
+                                            <span className="text-sm font-bold">Excluir</span>
+                                            <span className="text-[10px] text-rose-400/70">Remover permanentemente</span>
+                                          </div>
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1589,7 +1998,7 @@ export default function Documents() {
           </div>
 
           <div className="p-6 sm:p-8 space-y-6 bg-white overflow-y-auto max-h-[70vh] custom-scrollbar">
-            {/* Seleção de Setor e Pasta - Só exibe se não estivermos dentro de uma pasta específica */}
+            {/* Seleção de Setor, Pasta e Tipo de Documento */}
             {!currentFolder && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-3">
@@ -1637,6 +2046,28 @@ export default function Documents() {
                 </div>
               </div>
             )}
+
+            <div className="space-y-3">
+              <Label htmlFor="uploadDocumentType" className="text-sm font-bold text-slate-700 ml-1">
+                Tipo de Documento
+              </Label>
+              <div className="relative group">
+                <select 
+                  id="uploadDocumentType"
+                  value={selectedDocumentTypeId}
+                  onChange={(e) => setSelectedDocumentTypeId(e.target.value)}
+                  className="w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
+                >
+                  <option value="">Selecione o tipo de documento...</option>
+                  {documentTypes.map(type => (
+                    <option key={type.id} value={type.id}>{type.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-[#1a355b] transition-colors">
+                  <ChevronDown className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
 
             {currentFolder && (
               <div className="flex items-center gap-2 p-4 rounded-xl bg-blue-50 border border-blue-100 mb-2">
@@ -1956,6 +2387,7 @@ export default function Documents() {
           itemId={selectedItemForShare.id}
           itemName={selectedItemForShare.name}
           isFolder={selectedItemForShare.itemType === 'folder'}
+          tags={selectedItemForShare.tags}
         />
       )}
 
@@ -2244,6 +2676,118 @@ export default function Documents() {
         </SheetContent>
       </Sheet>
 
+      {/* Modal de Histórico de Versões */}
+      <Dialog open={isVersionHistoryOpen} onOpenChange={setIsVersionHistoryOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-[600px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
+          <div className="p-8 border-b border-slate-100/80 relative">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="p-2 rounded-xl bg-purple-50">
+                <History className="h-6 w-6 text-purple-600" />
+              </div>
+              <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Histórico de Versões</DialogTitle>
+            </div>
+            <DialogDescription className="text-slate-500 text-sm font-medium">
+              Visualize e restaure versões anteriores de <span className="font-bold text-slate-900">"{selectedDocumentForVersions?.name}"</span>
+            </DialogDescription>
+          </div>
+
+          <div className="p-6 sm:p-8 bg-white overflow-y-auto max-h-[60vh] custom-scrollbar">
+            {isLoadingVersions ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                <p className="text-sm font-medium text-slate-400">Carregando histórico...</p>
+              </div>
+            ) : documentVersions.length === 0 ? (
+              <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                <History className="h-10 w-10 text-slate-200 mx-auto mb-4" />
+                <h3 className="text-slate-900 font-bold text-lg tracking-tight">Sem histórico</h3>
+                <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
+                  Este documento ainda não possui outras versões registradas.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {documentVersions.map((version, idx) => (
+                  <div 
+                    key={version.id}
+                    className={cn(
+                      "group flex items-center justify-between p-4 rounded-2xl border transition-all",
+                      idx === 0 
+                        ? "bg-purple-50/30 border-purple-100 ring-1 ring-purple-100" 
+                        : "bg-white border-slate-100 hover:border-purple-200 hover:shadow-md hover:shadow-purple-900/5"
+                    )}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center font-black text-sm",
+                        idx === 0 ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "bg-slate-100 text-slate-400"
+                      )}>
+                        v{version.version_number}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800">
+                            {idx === 0 ? 'Versão Atual' : `Versão ${version.version_number}`}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-full">
+                            {formatSize(version.size_bytes)}
+                          </span>
+                          {version.document_type && (
+                            <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                              {version.document_type}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium text-slate-500">
+                          {formatDate(version.created_at)} • por {version.created_by || 'Sistema'}
+                        </p>
+                        {version.change_summary && (
+                          <p className="text-[11px] text-slate-400 italic mt-1 bg-white/50 p-1.5 rounded-lg border border-slate-50">
+                            "{version.change_summary}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => selectedDocumentForVersions && handleDownloadVersion(selectedDocumentForVersions.id, version.version_number, selectedDocumentForVersions.name)}
+                        title="Baixar esta versão"
+                        className="h-9 w-9 rounded-xl text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-all"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      {idx !== 0 && selectedDocumentForVersions?.can_edit && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => selectedDocumentForVersions && handleRestoreVersion(selectedDocumentForVersions.id, version.version_number)}
+                          title="Restaurar para esta versão"
+                          className="h-9 w-9 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-8 pt-0 flex justify-end">
+            <Button 
+              onClick={() => setIsVersionHistoryOpen(false)} 
+              className="w-full sm:w-auto px-8 h-12 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/10 transition-all active:scale-[0.98]"
+            >
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Visualizador de Documentos */}
       {viewerDoc && (
         <DocumentViewer 
@@ -2251,9 +2795,13 @@ export default function Documents() {
           documentName={viewerDoc.name}
           fileUrl={viewerDoc.url}
           canEdit={viewerDoc.can_edit}
+          documentType={viewerDoc.document_type}
+          ocrText={viewerDoc.ocr_text}
+          ocrProcessedAt={viewerDoc.ocr_processed_at}
           onClose={() => {
             window.URL.revokeObjectURL(viewerDoc.url);
             setViewerDoc(null);
+            if (id) navigate('/documents', { replace: true });
           }}
         />
       )}

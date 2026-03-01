@@ -15,36 +15,42 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorar requisições que não sejam GET ou sejam para a API
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+  const url = new URL(event.request.url);
+  
+  // NUNCA interceptar requisições para a API ou que não sejam GET
+  if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
+    // console.log('SW: Ignorando API ou não-GET:', event.request.method, url.pathname);
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+  // Se for uma requisição para a mesma origem (assets do frontend)
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
 
-      return fetch(event.request).then((response) => {
-        // Não cachear respostas que não sejam OK
-        if (!response || response.status !== 200 || response.type !== 'basic') {
+        return fetch(event.request).then((response) => {
+          // Não cachear se não for 200 OK
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
+
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+
           return response;
-        }
-
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+        }).catch((error) => {
+          // Se for navegação, retorna o index.html (SPA)
+          if (event.request.mode === 'navigate') {
+            return caches.match('/');
+          }
+          throw error;
         });
-
-        return response;
-      }).catch(() => {
-        // Se falhar o fetch e for uma navegação de página, talvez retornar index.html
-        if (event.request.mode === 'navigate') {
-          return caches.match('/');
-        }
-        return null;
-      });
-    })
-  );
+      })
+    );
+  }
 });

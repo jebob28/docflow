@@ -47,21 +47,19 @@ func main() {
 	var deletedDocsCount int
 	for rows.Next() {
 		var id, minioKey string
-		if err := rows.Scan(&id, &minioKey); err != nil {
-			log.Printf("Error scanning document row: %v", err)
+		if e := rows.Scan(&id, &minioKey); e != nil {
+			log.Printf("Error scanning document row: %v", e)
 			continue
 		}
 
 		// Delete from MinIO
-		err := storage.Delete(context.Background(), minioKey)
-		if err != nil {
-			log.Printf("Error deleting document %s from storage: %v", id, err)
+		if e := storage.Delete(context.Background(), minioKey); e != nil {
+			log.Printf("Error deleting document %s from storage: %v", id, e)
 		}
 
 		// Delete from database
-		_, err = db.Conn.Exec("DELETE FROM documents WHERE id = $1", id)
-		if err != nil {
-			log.Printf("Error deleting document %s from database: %v", id, err)
+		if _, e := db.Conn.Exec("DELETE FROM documents WHERE id = $1", id); e != nil {
+			log.Printf("Error deleting document %s from database: %v", id, e)
 		} else {
 			deletedDocsCount++
 		}

@@ -54,7 +54,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := h.db.Conn.Query(query, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao listar usuários", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao listar usuários")
 		return
 	}
 	defer rows.Close()
@@ -99,8 +99,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	RespondWithJSON(w, http.StatusOK, users)
 }
 
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -118,22 +117,22 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 	if req.Password == "" {
-		http.Error(w, "Senha não pode ser vazia", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Senha não pode ser vazia")
 		return
 	}
 	if err := h.security.ValidatePasswordStrength(req.Password); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	// Inicia transação
 	tx, err := h.db.Conn.Begin()
 	if err != nil {
-		http.Error(w, "Erro ao iniciar transação", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao iniciar transação")
 		return
 	}
 	defer tx.Rollback()
@@ -141,7 +140,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Hash da senha
 	hashedPassword, err := h.security.HashPassword(req.Password)
 	if err != nil {
-		http.Error(w, "Erro ao processar senha", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao processar senha")
 		return
 	}
 
@@ -159,7 +158,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var userID int
 	err = tx.QueryRow(query, req.FullName, req.Email, hashedPassword, tenantID, roleID).Scan(&userID)
 	if err != nil {
-		http.Error(w, "Erro ao criar usuário (e-mail já existe?)", http.StatusConflict)
+		RespondWithError(w, http.StatusConflict, "Erro ao criar usuário (e-mail já existe?)")
 		return
 	}
 
@@ -170,7 +169,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 			VALUES ($1, $2, $3)`,
 			userID, s.SectorID, s.PermissionType)
 		if err != nil {
-			http.Error(w, "Erro ao vincular setores", http.StatusInternalServerError)
+			RespondWithError(w, http.StatusInternalServerError, "Erro ao vincular setores")
 			return
 		}
 	}
@@ -179,12 +178,11 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	tx.Exec("UPDATE tenant_quotas SET current_users = current_users + 1 WHERE tenant_id = $1", tenantID)
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "Erro ao finalizar criação", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao finalizar criação")
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{"id": userID})
+	RespondWithJSON(w, http.StatusCreated, map[string]interface{}{"id": userID})
 }
 
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -202,14 +200,14 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
 	// Inicia transação
 	tx, err := h.db.Conn.Begin()
 	if err != nil {
-		http.Error(w, "Erro ao iniciar transação", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao iniciar transação")
 		return
 	}
 	defer tx.Rollback()
@@ -228,13 +226,13 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	`
 	res, err := tx.Exec(query, req.FullName, req.Email, roleID, userID, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar usuário")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Usuário não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Usuário não encontrado")
 		return
 	}
 
@@ -242,7 +240,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Primeiro remove todos os vínculos atuais
 	_, err = tx.Exec("DELETE FROM user_sectors WHERE user_id = $1", userID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar setores", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar setores")
 		return
 	}
 
@@ -253,18 +251,17 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 			VALUES ($1, $2, $3)`,
 			userID, s.SectorID, s.PermissionType)
 		if err != nil {
-			http.Error(w, "Erro ao vincular setores", http.StatusInternalServerError)
+			RespondWithError(w, http.StatusInternalServerError, "Erro ao vincular setores")
 			return
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "Erro ao finalizar atualização", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao finalizar atualização")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Usuário atualizado com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Usuário atualizado com sucesso"})
 }
 
 func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
@@ -275,16 +272,16 @@ func (h *UserHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		IsActive bool `json:"is_active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
 	_, err := h.db.Conn.Exec("UPDATE users SET is_active = $1 WHERE id = $2 AND tenant_id = $3", req.IsActive, userID, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar status do usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar status do usuário")
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Status atualizado"})
 }
 
 func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
@@ -295,32 +292,32 @@ func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
 	if req.Password == "" {
-		http.Error(w, "Senha não pode ser vazia", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Senha não pode ser vazia")
 		return
 	}
 	if err := h.security.ValidatePasswordStrength(req.Password); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	hashedPassword, err := h.security.HashPassword(req.Password)
 	if err != nil {
-		http.Error(w, "Erro ao processar senha", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao processar senha")
 		return
 	}
 
 	_, err = h.db.Conn.Exec("UPDATE users SET password_hash = $1 WHERE id = $2 AND tenant_id = $3", hashedPassword, userID, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao redefinir senha do usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao redefinir senha do usuário")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Senha atualizada"})
 }
 
 func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -329,13 +326,13 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.db.Conn.Exec("DELETE FROM users WHERE id = $1 AND tenant_id = $2", userID, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao deletar usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao deletar usuário")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Usuário não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Usuário não encontrado")
 		return
 	}
 

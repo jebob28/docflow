@@ -74,6 +74,7 @@ interface DocumentItem {
   owner?: string;
   itemType?: 'file';
   tags?: Tag[];
+  document_type?: string;
 }
 
 interface Stats {
@@ -103,6 +104,16 @@ interface TagStat {
   name: string;
   color: string;
   count: number;
+}
+
+interface ContractAlert {
+  id: string;
+  name: string;
+  extension: string;
+  contract_expires_at: string;
+  is_expired: boolean;
+  can_edit: boolean;
+  document_type?: string;
 }
 
 type Item = (FolderItem & { itemType: 'folder' }) | (DocumentItem & { itemType: 'file' });
@@ -138,6 +149,7 @@ const SummaryCard = ({ icon: Icon, label, value, color }: SummaryCardProps) => (
 );
 
 const RecentFileCard = ({ item, icon: Icon, color, onShare, onDownload, onDelete }: RecentFileCardProps) => {
+  const navigate = useNavigate();
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
@@ -156,11 +168,21 @@ const RecentFileCard = ({ item, icon: Icon, color, onShare, onDownload, onDelete
   };
 
   return (
-    <Card className="border-none shadow-sm bg-white rounded-2xl hover:shadow-xl transition-all duration-300 cursor-pointer group border border-transparent hover:border-slate-100">
+    <Card 
+      className="border-none shadow-sm bg-white rounded-2xl hover:shadow-xl transition-all duration-300 cursor-pointer group border border-transparent hover:border-slate-100"
+      onClick={() => navigate(`/documents/view/${item.id}`)}
+    >
       <CardContent className="p-4 sm:p-5">
         <div className="flex justify-between items-start mb-3 sm:mb-4">
-          <div className={cn("p-2 sm:p-2.5 rounded-lg shadow-sm", color)}>
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+          <div className="flex flex-col gap-2">
+            <div className={cn("p-2 sm:p-2.5 rounded-lg shadow-sm w-fit", color)}>
+              <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+            {item.document_type && (
+              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50 w-fit">
+                {item.document_type}
+              </span>
+            )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -245,6 +267,7 @@ export default function Dashboard() {
   const [monthlyUploads, setMonthlyUploads] = useState<MonthlyUpload[]>([]);
   const [fileTypeStats, setFileTypeStats] = useState<TypeDistribution[]>([]);
   const [topTags, setTopTags] = useState<TagStat[]>([]);
+  const [contractAlerts, setContractAlerts] = useState<ContractAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [selectedItemForShare, setSelectedItemForShare] = useState<Item | null>(null);
@@ -295,6 +318,17 @@ export default function Dashboard() {
           if (data.top_tags) {
             setTopTags(data.top_tags);
           }
+        }
+
+        // Carregar alertas de contratos
+        const alertsResponse = await fetch('/api/v1/documents/alerts/contracts', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          setContractAlerts(alertsData || []);
         }
       } catch (error) {
         console.error("Erro ao carregar dados do dashboard:", error);
@@ -462,6 +496,57 @@ export default function Dashboard() {
         <SummaryCard icon={Share2} label="Partilhados" value={String(stats.shared)} color="bg-emerald-50 text-emerald-500" />
         <SummaryCard icon={Eye} label="Vistas" value={String(stats.views)} color="bg-purple-50 text-purple-500" />
       </div>
+
+      {contractAlerts.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              Alertas de Contratos
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white">
+                {contractAlerts.length}
+              </span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {contractAlerts.map((alert) => (
+              <Card 
+                key={alert.id} 
+                className={cn(
+                  "border-none shadow-sm rounded-2xl overflow-hidden cursor-pointer hover:shadow-md transition-all",
+                  alert.is_expired ? "bg-rose-50 border-l-4 border-l-rose-500" : "bg-amber-50 border-l-4 border-l-amber-500"
+                )}
+                onClick={() => navigate(`/documents?id=${alert.id}`)}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className={cn(
+                    "p-3 rounded-xl shadow-sm",
+                    alert.is_expired ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                  )}>
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-800 text-sm truncate">{alert.name}</h3>
+                      {alert.document_type && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/50 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+                          {alert.document_type}
+                        </span>
+                      )}
+                    </div>
+                    <p className={cn(
+                      "text-[10px] font-black uppercase tracking-wider mt-1",
+                      alert.is_expired ? "text-rose-500" : "text-amber-600"
+                    )}>
+                      {alert.is_expired ? "Vencido em: " : "Vence em: "}
+                      {new Date(alert.contract_expires_at).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="border-none shadow-sm bg-white rounded-3xl overflow-hidden lg:col-span-1">

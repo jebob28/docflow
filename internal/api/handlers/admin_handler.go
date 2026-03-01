@@ -37,7 +37,7 @@ func (h *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Requisição inválida", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Requisição inválida")
 		return
 	}
 
@@ -47,19 +47,18 @@ func (h *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
 	err := h.db.Conn.QueryRow(query, req.Email).Scan(&adminID, &fullName, &storedHash, &isActive)
 
 	if err != nil || !isActive || !h.security.CheckPasswordHash(req.Password, storedHash) {
-		http.Error(w, "Credenciais administrativas inválidas", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Credenciais administrativas inválidas")
 		return
 	}
 
 	// Gera token com claim especial "is_saas_admin"
 	token, err := h.jwt.GenerateToken(0, uuid.Nil, req.Email, false, "SAAS_ADMIN") // 0 e uuid.Nil para admin global
 	if err != nil {
-		http.Error(w, "Erro ao gerar token", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao gerar token")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	RespondWithJSON(w, http.StatusOK, map[string]string{
 		"token": token,
 		"name":  fullName,
 		"role":  "SAAS_ADMIN",
@@ -79,7 +78,7 @@ func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := h.db.Conn.Query(query)
 	if err != nil {
-		http.Error(w, "Erro ao listar tenants", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao listar tenants")
 		return
 	}
 	defer rows.Close()
@@ -102,8 +101,7 @@ func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 			"max_storage_gb": float64(maxStorage) / (1024 * 1024 * 1024),
 		})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tenants)
+	RespondWithJSON(w, http.StatusOK, tenants)
 }
 
 func (h *AdminHandler) UpdateTenantQuota(w http.ResponseWriter, r *http.Request) {
@@ -113,12 +111,12 @@ func (h *AdminHandler) UpdateTenantQuota(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
 	if req.MaxStorageGB <= 0 {
-		http.Error(w, "Capacidade deve ser maior que zero", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Capacidade deve ser maior que zero")
 		return
 	}
 
@@ -132,11 +130,11 @@ func (h *AdminHandler) UpdateTenantQuota(w http.ResponseWriter, r *http.Request)
 	`
 	_, err := h.db.Conn.Exec(query, tenantID, maxStorageBytes)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar quota do tenant", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar quota do tenant")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Quota atualizada com sucesso"})
 }
 
 func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +146,7 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
@@ -166,18 +164,17 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	`
 	res, err := h.db.Conn.Exec(query, req.FullName, req.Email, roleID, userID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar usuário")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Usuário não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Usuário não encontrado")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Usuário atualizado com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Usuário atualizado com sucesso"})
 }
 
 func (h *AdminHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
@@ -188,13 +185,13 @@ func (h *AdminHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.db.Conn.Exec("DELETE FROM tenants WHERE id = $1", tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao deletar tenant. Verifique se existem usuários ou documentos vinculados.", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao deletar tenant. Verifique se existem usuários ou documentos vinculados.")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Tenant não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Tenant não encontrado")
 		return
 	}
 
@@ -210,7 +207,7 @@ func (h *AdminHandler) UpdateTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
@@ -221,18 +218,17 @@ func (h *AdminHandler) UpdateTenant(w http.ResponseWriter, r *http.Request) {
 	`
 	res, err := h.db.Conn.Exec(query, req.Name, req.Slug, req.Document, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar empresa", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar empresa")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Empresa não encontrada", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Empresa não encontrada")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Empresa atualizada com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Empresa atualizada com sucesso"})
 }
 
 func (h *AdminHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +239,7 @@ func (h *AdminHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
@@ -252,18 +248,18 @@ func (h *AdminHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 	req.Document = strings.TrimSpace(req.Document)
 
 	if req.Name == "" || req.Slug == "" || req.Document == "" {
-		http.Error(w, "Campos obrigatórios ausentes", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Campos obrigatórios ausentes")
 		return
 	}
 
 	var exists bool
 	err := h.db.Conn.QueryRow("SELECT EXISTS (SELECT 1 FROM tenants WHERE slug = $1 OR document = $2)", req.Slug, req.Document).Scan(&exists)
 	if err != nil {
-		http.Error(w, "Erro ao validar dados do tenant", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao validar dados do tenant")
 		return
 	}
 	if exists {
-		http.Error(w, "Slug ou CNPJ já cadastrado", http.StatusConflict)
+		RespondWithError(w, http.StatusConflict, "Slug ou CNPJ já cadastrado")
 		return
 	}
 
@@ -273,16 +269,16 @@ func (h *AdminHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			http.Error(w, "Slug ou CNPJ já cadastrado", http.StatusConflict)
+			RespondWithError(w, http.StatusConflict, "Slug ou CNPJ já cadastrado")
 			return
 		}
-		http.Error(w, "Erro ao criar tenant", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao criar tenant")
 		return
 	}
 
 	_, err = h.db.Conn.Exec("INSERT INTO tenant_quotas (tenant_id, max_storage_bytes) VALUES ($1, 10737418240)", tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao configurar quota do tenant", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao configurar quota do tenant")
 		return
 	}
 
@@ -290,12 +286,11 @@ func (h *AdminHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 		tenantID, "Confidencial", "#dc2626",
 	)
 	if err != nil {
-		http.Error(w, "Erro ao configurar etiqueta padrão", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao configurar etiqueta padrão")
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"id": tenantID})
+	RespondWithJSON(w, http.StatusCreated, map[string]string{"id": tenantID})
 }
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
@@ -307,7 +302,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	`
 	rows, err := h.db.Conn.Query(query)
 	if err != nil {
-		http.Error(w, "Erro ao listar usuários", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao listar usuários")
 		return
 	}
 	defer rows.Close()
@@ -327,8 +322,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 			"created_at":  createdAt,
 		})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	RespondWithJSON(w, http.StatusOK, users)
 }
 
 func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -341,22 +335,22 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 	if req.Password == "" {
-		http.Error(w, "Senha não pode ser vazia", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Senha não pode ser vazia")
 		return
 	}
 	if err := h.security.ValidatePasswordStrength(req.Password); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	// Hash da senha
 	hashedPassword, err := h.security.HashPassword(req.Password)
 	if err != nil {
-		http.Error(w, "Erro ao processar senha", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao processar senha")
 		return
 	}
 
@@ -375,15 +369,14 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var userID int
 	err = h.db.Conn.QueryRow(query, req.FullName, req.Email, hashedPassword, req.TenantID, roleID).Scan(&userID)
 	if err != nil {
-		http.Error(w, "Erro ao criar usuário (e-mail já existe?)", http.StatusConflict)
+		RespondWithError(w, http.StatusConflict, "Erro ao criar usuário (e-mail já existe?)")
 		return
 	}
 
 	// Atualiza contador de usuários na quota
 	h.db.Conn.Exec("UPDATE tenant_quotas SET current_users = current_users + 1 WHERE tenant_id = $1", req.TenantID)
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{"id": userID})
+	RespondWithJSON(w, http.StatusCreated, map[string]interface{}{"id": userID})
 }
 
 func (h *AdminHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) {
@@ -392,16 +385,16 @@ func (h *AdminHandler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) 
 		IsActive bool `json:"is_active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
 	_, err := h.db.Conn.Exec("UPDATE users SET is_active = $1 WHERE id = $2", req.IsActive, userID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar status do usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar status do usuário")
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Status atualizado"})
 }
 
 func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request) {
@@ -410,34 +403,34 @@ func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
 	if req.Password == "" {
-		http.Error(w, "Senha não pode ser vazia", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Senha não pode ser vazia")
 		return
 	}
 	if err := h.security.ValidatePasswordStrength(req.Password); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	// Hash da nova senha
 	hashedPassword, err := h.security.HashPassword(req.Password)
 	if err != nil {
-		http.Error(w, "Erro ao processar senha", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao processar senha")
 		return
 	}
 
 	// Atualiza no banco
 	_, err = h.db.Conn.Exec("UPDATE users SET password_hash = $1 WHERE id = $2", hashedPassword, userID)
 	if err != nil {
-		http.Error(w, "Erro ao redefinir senha do usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao redefinir senha do usuário")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Senha atualizada"})
 }
 
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -445,13 +438,13 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.db.Conn.Exec("DELETE FROM users WHERE id = $1", userID)
 	if err != nil {
-		http.Error(w, "Erro ao deletar usuário", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao deletar usuário")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Usuário não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Usuário não encontrado")
 		return
 	}
 
@@ -464,7 +457,7 @@ func (h *AdminHandler) UpdateTenantStatus(w http.ResponseWriter, r *http.Request
 		IsActive bool `json:"is_active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
@@ -475,10 +468,10 @@ func (h *AdminHandler) UpdateTenantStatus(w http.ResponseWriter, r *http.Request
 
 	_, err := h.db.Conn.Exec("UPDATE tenants SET status = $1 WHERE id = $2", status, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao atualizar status", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar status")
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Status atualizado"})
 }
 
 func (h *AdminHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
@@ -495,8 +488,7 @@ func (h *AdminHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request)
 	// Formata para GB ou TB
 	totalStorage := formatBytes(totalBytes)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"total_tenants": totalTenants,
 		"active_leads":  activeLeads,
 		"total_storage": totalStorage,

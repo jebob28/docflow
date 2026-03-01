@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,9 +22,9 @@ import (
 
 func main() {
 	// Carrega configurações
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("Erro ao carregar configurações: %v", err)
+	cfg, errCfg := config.LoadConfig()
+	if errCfg != nil {
+		log.Fatalf("Erro ao carregar configurações: %v", errCfg)
 	}
 	isProduction := strings.EqualFold(cfg.AppEnv, "production")
 	if isProduction {
@@ -49,28 +50,35 @@ func main() {
 	defer db.Close()
 
 	// Executa migrações
-	if err := db.RunMigrations("migrations", cfg.DBName); err != nil {
+	if err = db.RunMigrations("migrations", cfg.DBName); err != nil {
 		log.Fatalf("Erro ao executar migrações: %v", err)
 	}
 
 	// Inicializa Serviços
 	securityService := service.NewSecurityService()
-	vaultService, err := service.NewVaultService()
-	if err != nil {
-		log.Printf("Aviso: Vault não disponível: %v", err)
+	vaultService, errV := service.NewVaultService()
+	if errV != nil {
+		log.Printf("Aviso: Vault não disponível: %v", errV)
 	}
 
 	jwtService := service.NewJWTService()
 
-	storageService, err := service.NewStorageService()
-	if err != nil {
-		log.Fatalf("Erro ao inicializar MinIO: %v", err)
+	storageService, errS := service.NewStorageService()
+	if errS != nil {
+		log.Fatalf("Erro ao inicializar MinIO: %v", errS)
 	}
 
-	redisService, err := service.NewRedisService()
-	if err != nil {
-		log.Fatalf("Erro ao inicializar Redis: %v", err)
+	redisService, errR := service.NewRedisService()
+	if errR != nil {
+		log.Fatalf("Erro ao inicializar Redis: %v", errR)
 	}
+
+	openSearchService := service.NewOpenSearchService()
+
+	// Inicializa Worker de OCR
+	ocrService := service.NewOCRService()
+	workerService := service.NewWorkerService(db, storageService, openSearchService, ocrService, vaultService, securityService)
+	go workerService.Start(context.Background())
 
 	// Configura o Roteador
 	r := chi.NewRouter()
@@ -117,10 +125,11 @@ func main() {
 
 	// Handlers
 	tenantHandler := handlers.NewTenantHandler(db, securityService, vaultService, jwtService, redisService)
-	documentHandler := handlers.NewDocumentHandler(db, storageService, vaultService, redisService, securityService)
+	documentHandler := handlers.NewDocumentHandler(db, storageService, vaultService, redisService, securityService, openSearchService)
 	adminHandler := handlers.NewAdminHandler(db, securityService, jwtService)
 	sectorHandler := handlers.NewSectorHandler(db)
 	userHandler := handlers.NewUserHandler(db, securityService)
+	documentTypeHandler := handlers.NewDocumentTypeHandler(db, storageService)
 
 	// Rotas da API v1
 	r.Route("/api/v1", func(r chi.Router) {
@@ -187,11 +196,11 @@ func main() {
 			r.Post("/mfa/disable", tenantHandler.DisableMFA)
 
 			// Personalização e Perfil
-			r.Get("/customization", tenantHandler.GetCustomization)
+			r.Get("/customization", apiMiddleware.RBACMiddleware(db, "VIEW_SYSTEM")(http.HandlerFunc(tenantHandler.GetCustomization)).ServeHTTP)
 			r.Put("/customization", apiMiddleware.RBACMiddleware(db, "MANAGE_SYSTEM")(http.HandlerFunc(tenantHandler.UpdateCustomization)).ServeHTTP)
 			r.Get("/profile", tenantHandler.GetUserProfile)
 			r.Put("/profile", tenantHandler.UpdateUserProfile)
-			r.Get("/account", tenantHandler.GetAccountSettings)
+			r.Get("/account", apiMiddleware.RBACMiddleware(db, "VIEW_SYSTEM")(http.HandlerFunc(tenantHandler.GetAccountSettings)).ServeHTTP)
 			r.Put("/account", apiMiddleware.RBACMiddleware(db, "MANAGE_SYSTEM")(http.HandlerFunc(tenantHandler.UpdateAccountSettings)).ServeHTTP)
 			r.Get("/team", tenantHandler.GetTeam)
 
@@ -205,11 +214,18 @@ func main() {
 				r.Post("/trash/{id}/restore", documentHandler.Restore)
 				r.Delete("/trash/{id}", apiMiddleware.RBACMiddleware(db, "DELETE")(http.HandlerFunc(documentHandler.PermanentDelete)).ServeHTTP)
 				r.Get("/search", documentHandler.Search)
+				r.Get("/{id}/details", documentHandler.GetDocument)
 				r.Get("/{id}", documentHandler.Download)
 				r.Get("/download/{id}", documentHandler.Download)
 				r.Post("/{id}/ocr", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.UpdateOCR)).ServeHTTP)
 				r.Patch("/{id}/rename", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.Rename)).ServeHTTP)
 				r.Delete("/{id}", apiMiddleware.RBACMiddleware(db, "DELETE")(http.HandlerFunc(documentHandler.Delete)).ServeHTTP)
+				r.Patch("/{id}/status", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.UpdateStatus)).ServeHTTP)
+
+				// Versionamento
+				r.Post("/{id}/versions", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.UploadNewVersion)).ServeHTTP)
+				r.Get("/{id}/versions", documentHandler.ListVersions)
+				r.Post("/{id}/restore", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.RestoreVersion)).ServeHTTP)
 
 				r.Get("/{id}/annotations", documentHandler.ListAnnotations)
 				r.Post("/{id}/annotations", documentHandler.CreateAnnotation)
@@ -222,13 +238,13 @@ func main() {
 				r.Post("/{id}/tags", documentHandler.AssignTag)
 				r.Delete("/{id}/tags/{tagId}", documentHandler.UnassignTag)
 
-				r.Post("/{id}/share-link", documentHandler.CreateShareLink)
+				r.Post("/{id}/share-link", apiMiddleware.RBACMiddleware(db, "SHARE")(http.HandlerFunc(documentHandler.CreateShareLink)).ServeHTTP)
 			})
 
-			r.Post("/documents/{id}/share", documentHandler.Share)
+			r.Post("/documents/{id}/share", apiMiddleware.RBACMiddleware(db, "SHARE")(http.HandlerFunc(documentHandler.Share)).ServeHTTP)
 			r.Get("/documents/{id}/shares", documentHandler.GetShares)
-			r.Patch("/shares/{shareId}", documentHandler.UpdateSharePermission)
-			r.Delete("/shares/{shareId}", documentHandler.RevokeShare)
+			r.Patch("/shares/{shareId}", apiMiddleware.RBACMiddleware(db, "SHARE")(http.HandlerFunc(documentHandler.UpdateSharePermission)).ServeHTTP)
+			r.Delete("/shares/{shareId}", apiMiddleware.RBACMiddleware(db, "SHARE")(http.HandlerFunc(documentHandler.RevokeShare)).ServeHTTP)
 			r.Get("/documents/shared/with-me", documentHandler.ListSharedWithMe)
 			r.Get("/documents/shared/by-me", documentHandler.ListSharedByMe)
 
@@ -238,10 +254,18 @@ func main() {
 			r.Post("/folders/{id}/tags", documentHandler.AssignTag)
 			r.Delete("/folders/{id}/tags/{tagId}", documentHandler.UnassignTag)
 
+			r.Route("/document-types", func(r chi.Router) {
+				r.Get("/", documentTypeHandler.List)
+				r.Post("/", apiMiddleware.RBACMiddleware(db, "MANAGE_DOCUMENT_TYPES")(http.HandlerFunc(documentTypeHandler.Create)).ServeHTTP)
+				r.Put("/{id}", apiMiddleware.RBACMiddleware(db, "MANAGE_DOCUMENT_TYPES")(http.HandlerFunc(documentTypeHandler.Update)).ServeHTTP)
+				r.Delete("/{id}", apiMiddleware.RBACMiddleware(db, "MANAGE_DOCUMENT_TYPES")(http.HandlerFunc(documentTypeHandler.Delete)).ServeHTTP)
+				r.Post("/retention-worker", apiMiddleware.AdminOnlyMiddleware()(http.HandlerFunc(documentTypeHandler.RunRetentionWorker)).ServeHTTP)
+			})
+
 			r.Get("/sectors", sectorHandler.List)
-			r.Post("/sectors", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(sectorHandler.Create)).ServeHTTP)
-			r.Put("/sectors/{id}", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(sectorHandler.Update)).ServeHTTP)
-			r.Delete("/sectors/{id}", apiMiddleware.RBACMiddleware(db, "DELETE")(http.HandlerFunc(sectorHandler.Delete)).ServeHTTP)
+			r.Post("/sectors", apiMiddleware.RBACMiddleware(db, "MANAGE_SECTORS")(http.HandlerFunc(sectorHandler.Create)).ServeHTTP)
+			r.Put("/sectors/{id}", apiMiddleware.RBACMiddleware(db, "MANAGE_SECTORS")(http.HandlerFunc(sectorHandler.Update)).ServeHTTP)
+			r.Delete("/sectors/{id}", apiMiddleware.RBACMiddleware(db, "MANAGE_SECTORS")(http.HandlerFunc(sectorHandler.Delete)).ServeHTTP)
 
 			r.Route("/users", func(r chi.Router) {
 				r.Get("/", userHandler.List)
@@ -259,9 +283,35 @@ func main() {
 		ticker := time.NewTicker(30 * time.Minute)
 		for range ticker.C {
 			log.Println("Executando limpeza de links expirados...")
-			_, err := db.Conn.Exec("UPDATE document_links SET is_active = FALSE WHERE expires_at < NOW() AND is_active = TRUE")
+			_, e := db.Conn.Exec("UPDATE document_links SET active = FALSE WHERE expires_at < NOW() AND active = TRUE")
+			if e != nil {
+				log.Printf("Erro ao limpar links: %v", e)
+			}
+		}
+	}()
+
+	// Iniciar worker de retenção automática (Expurgo) em background - Diário
+	go func() {
+		// Esperar um pouco antes da primeira execução para não sobrecarregar o startup
+		time.Sleep(1 * time.Minute)
+
+		// Executar imediatamente no startup (após o sleep)
+		log.Println("Executando processamento inicial de retenção e expurgo...")
+		count, err := documentTypeHandler.ExecuteRetention(context.Background())
+		if err != nil {
+			log.Printf("Erro no worker de retenção: %v", err)
+		} else {
+			log.Printf("Worker de retenção concluído. Arquivos removidos: %d", count)
+		}
+
+		ticker := time.NewTicker(24 * time.Hour)
+		for range ticker.C {
+			log.Println("Executando processamento diário de retenção e expurgo...")
+			count, err := documentTypeHandler.ExecuteRetention(context.Background())
 			if err != nil {
-				log.Printf("Erro ao limpar links: %v", err)
+				log.Printf("Erro no worker de retenção: %v", err)
+			} else {
+				log.Printf("Worker de retenção concluído. Arquivos removidos: %d", count)
 			}
 		}
 	}()

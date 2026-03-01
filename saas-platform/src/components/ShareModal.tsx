@@ -48,6 +48,7 @@ interface ShareModalProps {
   itemName: string;
   itemType?: 'file' | 'folder';
   isFolder?: boolean;
+  tags?: any[];
 }
 
 
@@ -73,11 +74,16 @@ interface Sector {
   name: string;
 }
 
-export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType, isFolder = false }: ShareModalProps) {
+export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType, isFolder = false, tags = [] }: ShareModalProps) {
   const isFolderValue = itemType ? itemType === 'folder' : isFolder;
   const [activeTab, setActiveTab] = useState<'users' | 'sectors' | 'links'>('users');
   const [loading, setLoading] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
   const [shares, setShares] = useState<ShareInfo[]>([]);
+
+  const isConfidential = useCallback(() => {
+    return tags.some(tag => (tag?.name || '').toLowerCase() === 'confidencial');
+  }, [tags]);
   
   // States for User/Sector sharing
   const [availableUsers, setAvailableUsers] = useState<ApiUser[]>([]);
@@ -165,6 +171,15 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
       if (resUsers.ok) {
         const data = await resUsers.json();
         setAvailableUsers(data || []);
+      }
+
+      // Buscar perfil para obter a role
+      const resProfile = await fetch('/api/v1/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (resProfile.ok) {
+        const profileData = await resProfile.json();
+        setUserRole(profileData.role || '');
       }
     } catch (err) {
       console.error("Erro ao buscar usuários/setores:", err);
@@ -273,6 +288,26 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
+
+  if (userRole.toUpperCase() === 'USER' && isConfidential()) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[450px] p-8 text-center bg-white rounded-2xl">
+          <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4 border border-amber-100">
+            <Shield className="h-8 w-8 text-amber-600" />
+          </div>
+          <DialogTitle className="text-xl font-bold text-slate-900 mb-2">Acesso Restrito</DialogTitle>
+          <DialogDescription className="text-slate-500 font-medium">
+            Seu perfil de usuário não possui permissão para compartilhar documentos confidenciais. 
+            Esta ação é restrita a Gestores e Administradores.
+          </DialogDescription>
+          <Button onClick={onClose} className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl h-12">
+            Entendido
+          </Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

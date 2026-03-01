@@ -46,7 +46,7 @@ func (h *SectorHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.Conn.Query(query, claims.UserID, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao buscar setores", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao buscar setores")
 		return
 	}
 	defer rows.Close()
@@ -75,8 +75,7 @@ func (h *SectorHandler) List(w http.ResponseWriter, r *http.Request) {
 		sectors = append(sectors, s)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"sectors":    sectors,
 		"can_create": claims.IsMaster || claims.Role == "MASTER" || claims.Role == "ADMIN" || claims.Role == "SAAS_ADMIN",
 	})
@@ -92,12 +91,12 @@ func (h *SectorHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Payload inválido", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Payload inválido")
 		return
 	}
 
 	if input.Name == "" {
-		http.Error(w, "Nome é obrigatório", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Nome é obrigatório")
 		return
 	}
 
@@ -109,13 +108,11 @@ func (h *SectorHandler) Create(w http.ResponseWriter, r *http.Request) {
 		tenantID, input.Name, input.Description).Scan(&id)
 
 	if err != nil {
-		http.Error(w, "Erro ao criar setor ou nome já existe", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao criar setor ou nome já existe")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
 		"id":      id,
 		"message": "Setor criado com sucesso",
 	})
@@ -136,7 +133,7 @@ func (h *SectorHandler) Update(w http.ResponseWriter, r *http.Request) {
 			claims.UserID, sectorID).Scan(&permType)
 
 		if err != nil || permType != "GESTOR" {
-			http.Error(w, "Sem permissão para editar este setor", http.StatusForbidden)
+			RespondWithError(w, http.StatusForbidden, "Sem permissão para editar este setor")
 			return
 		}
 	}
@@ -147,12 +144,12 @@ func (h *SectorHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Payload inválido", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Payload inválido")
 		return
 	}
 
 	if input.Name == "" {
-		http.Error(w, "Nome é obrigatório", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Nome é obrigatório")
 		return
 	}
 
@@ -163,18 +160,17 @@ func (h *SectorHandler) Update(w http.ResponseWriter, r *http.Request) {
 		input.Name, input.Description, sectorID, tenantID)
 
 	if err != nil {
-		http.Error(w, "Erro ao atualizar setor", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao atualizar setor")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Setor não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Setor não encontrado")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Setor atualizado com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Setor atualizado com sucesso"})
 }
 
 func (h *SectorHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -184,13 +180,13 @@ func (h *SectorHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	// RBACMiddleware já valida a permissão DELETE
 	res, err := h.db.Conn.Exec("DELETE FROM sectors WHERE id = $1 AND tenant_id = $2", sectorID, tenantID)
 	if err != nil {
-		http.Error(w, "Erro ao deletar setor", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao deletar setor")
 		return
 	}
 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		http.Error(w, "Setor não encontrado", http.StatusNotFound)
+		RespondWithError(w, http.StatusNotFound, "Setor não encontrado")
 		return
 	}
 

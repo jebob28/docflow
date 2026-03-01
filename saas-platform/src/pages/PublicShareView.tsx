@@ -29,6 +29,7 @@ interface SharedFile {
   size_bytes: number;
   content_type: string;
   created_at: string;
+  document_type?: string;
 }
 
 interface ShareData {
@@ -37,6 +38,7 @@ interface ShareData {
   // If it's a single document, it will be returned differently or we'll fetch it
   is_document?: boolean;
   document_name?: string;
+  document_type?: string;
 }
 
 export default function PublicShareView() {
@@ -188,6 +190,11 @@ export default function PublicShareView() {
           <div className="min-w-0">
             <h3 className="font-bold text-slate-900 text-sm truncate pr-2">
               {doc.name}
+              {doc.document_type && (
+                <span className="ml-2 px-1 py-0.5 rounded bg-blue-50 text-blue-600 text-[7px] font-black uppercase tracking-widest border border-blue-100/50 inline-block align-middle">
+                  {doc.document_type}
+                </span>
+              )}
             </h3>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
@@ -223,9 +230,16 @@ export default function PublicShareView() {
               <span className="text-[10px] font-bold uppercase tracking-widest">Acesso Público Seguro</span>
             </div>
             <div className="space-y-1">
-              <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
-                {isFolder ? data?.folder_name : 'Documento Compartilhado'}
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+                  {isFolder ? data?.folder_name : (data?.document_name || 'Documento Compartilhado')}
+                </h1>
+                {!isFolder && data?.document_type && (
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-widest border border-blue-200">
+                    {data.document_type}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-500 font-medium text-sm sm:text-base">
                 {isFolder 
                   ? `Este link contém ${data?.documents?.length || 0} arquivos compartilhados.` 
@@ -274,7 +288,14 @@ export default function PublicShareView() {
                               <FileText className="h-6 w-6 text-blue-500" />
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-900">{doc.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-slate-900">{doc.name}</span>
+                                {doc.document_type && (
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[8px] font-black uppercase tracking-widest border border-blue-100/50">
+                                    {doc.document_type}
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{doc.extension.replace('.', '')}</span>
                             </div>
                           </div>

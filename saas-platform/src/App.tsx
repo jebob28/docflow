@@ -10,6 +10,8 @@ import Settings from '@/pages/Settings';
 import Config from '@/pages/Config';
 import Profile from '@/pages/Profile';
 import Scanner from '@/pages/Scanner';
+import Retention from '@/pages/Retention';
+import Workflows from '@/pages/Workflows';
 import PublicShareView from '@/pages/PublicShareView';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Toaster } from 'sonner';
@@ -42,6 +44,15 @@ function App() {
         
         <Route 
           path="/documents" 
+          element={
+            <ProtectedRoute>
+              <Documents />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/documents/view/:id" 
           element={
             <ProtectedRoute>
               <Documents />
@@ -108,6 +119,24 @@ function App() {
           element={
             <ProtectedRoute>
               <Scanner />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/retention" 
+          element={
+            <ProtectedRoute>
+              <Retention />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/workflows" 
+          element={
+            <ProtectedRoute>
+              <Workflows />
             </ProtectedRoute>
           } 
         />

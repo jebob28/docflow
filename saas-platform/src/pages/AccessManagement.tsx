@@ -36,6 +36,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetFooter,
   SheetClose,
 } from '@/components/ui/sheet';
@@ -86,6 +87,7 @@ export default function AccessManagement() {
   }, []);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [userRole, setUserRole] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -146,6 +148,13 @@ export default function AccessManagement() {
         }));
         setUsers(processedUsers);
       }
+
+      // Buscar perfil para obter a role do usuário logado
+      const profileRes = await fetch('/api/v1/profile', { headers });
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        setUserRole(profileData.role || '');
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Erro ao carregar dados');
@@ -185,10 +194,17 @@ export default function AccessManagement() {
         setEditingSector(null);
         fetchData();
       } else {
-        toast.error('Erro ao salvar setor');
+        try {
+          const err = await response.json();
+          toast.error(err.message || 'Erro ao salvar setor');
+        } catch (e) {
+          const text = await response.text();
+          toast.error(text || 'Erro ao salvar setor');
+        }
       }
-    } catch {
-      toast.error('Erro de conexão');
+    } catch (error) {
+      console.error('Erro detalhado no fetch:', error);
+      toast.error('Erro de conexão ou erro inesperado');
     } finally {
       setIsSubmitting(false);
     }
@@ -202,6 +218,8 @@ export default function AccessManagement() {
       const token = localStorage.getItem('token');
       const url = editingUser ? `/api/v1/users/${editingUser.id}` : '/api/v1/users';
       const method = editingUser ? 'PUT' : 'POST';
+
+      console.log(`Tentando ${method} em ${url}...`);
 
       const response = await fetch(url, {
         method,
@@ -219,11 +237,18 @@ export default function AccessManagement() {
         setUserForm({ full_name: '', email: '', password: '', role_name: 'USER', sectors: [] });
         fetchData();
       } else {
-        const err = await response.json();
-        toast.error(err.message || 'Erro ao salvar usuário');
+        try {
+          const err = await response.json();
+          toast.error(err.message || 'Erro ao salvar usuário');
+        } catch (e) {
+          // Se não for JSON, tenta ler como texto
+          const text = await response.text();
+          toast.error(text || 'Erro ao salvar usuário');
+        }
       }
-    } catch {
-      toast.error('Erro de conexão');
+    } catch (error) {
+      console.error('Erro detalhado no fetch (usuário):', error);
+      toast.error('Erro de conexão ou erro inesperado');
     } finally {
       setIsSubmitting(false);
     }
@@ -413,6 +438,8 @@ export default function AccessManagement() {
     </Card>
   );
 
+  const canManageSectors = userRole.toUpperCase() === 'ADMIN' || userRole.toUpperCase() === 'MASTER';
+
   const SectorCard = ({ sector }: { sector: Sector }) => (
     <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden hover:shadow-md transition-all duration-300">
       <CardContent className="p-4">
@@ -432,6 +459,7 @@ export default function AccessManagement() {
             <Button 
               variant="ghost" 
               size="icon" 
+              disabled={!canManageSectors}
               className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-slate-100"
               onClick={() => {
                 setEditingSector(sector);
@@ -444,6 +472,7 @@ export default function AccessManagement() {
             <Button 
               variant="ghost" 
               size="icon" 
+              disabled={!canManageSectors}
               className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
               onClick={() => {
                 setItemToDelete({ id: sector.id, type: 'sector', name: sector.name });
@@ -547,6 +576,7 @@ export default function AccessManagement() {
           </div>
           
           <Button 
+            disabled={activeTab === 'sectors' && !canManageSectors}
             onClick={() => {
               if (activeTab === 'users') {
                 setEditingUser(null);
@@ -822,9 +852,9 @@ export default function AccessManagement() {
                 )}>
                   {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
                 </SheetTitle>
-                <p className="text-slate-500 text-sm font-medium mt-1">
+                <SheetDescription className="text-slate-500 text-sm font-medium mt-1">
                   {editingUser ? 'Atualize as informações do membro' : 'Cadastre um novo membro na plataforma'}
-                </p>
+                </SheetDescription>
               </div>
             </div>
             {isDesktop && (
@@ -1081,9 +1111,9 @@ export default function AccessManagement() {
                 )}>
                   {editingSector ? 'Editar Setor' : 'Novo Setor'}
                 </SheetTitle>
-                <p className="text-slate-500 text-sm font-medium mt-1">
+                <SheetDescription className="text-slate-500 text-sm font-medium mt-1">
                   {editingSector ? 'Atualize as informações do setor' : 'Cadastre um novo setor na organização'}
-                </p>
+                </SheetDescription>
               </div>
             </div>
             {isDesktop && (

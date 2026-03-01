@@ -37,7 +37,7 @@ func NewTenantHandler(db *database.DB, security *service.SecurityService, vault 
 func (h *TenantHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	claims, ok := service.GetClaimsFromContext(r.Context())
 	if !ok {
-		http.Error(w, "Não autorizado", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Não autorizado")
 		return
 	}
 
@@ -52,8 +52,7 @@ func (h *TenantHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Logout realizado com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Logout realizado com sucesso"})
 }
 
 func (h *TenantHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +63,7 @@ func (h *TenantHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Requisição inválida", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Requisição inválida")
 		return
 	}
 
@@ -84,22 +83,22 @@ func (h *TenantHandler) Login(w http.ResponseWriter, r *http.Request) {
 	err := h.db.Conn.QueryRow(query, req.Email).Scan(&userID, &tenantID, &hashedPassword, &email, &isMaster, &fullName, &roleName, &mfaEnabled, &mfaSecret)
 
 	if err != nil {
-		http.Error(w, "Usuário ou senha inválidos", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Usuário ou senha inválidos")
 		return
 	}
 
 	// Verifica a senha
 	if !h.security.CheckPasswordHash(req.Password, hashedPassword) {
-		http.Error(w, "Usuário ou senha inválidos", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Usuário ou senha inválidos")
 		return
 	}
 	if mfaEnabled {
 		if req.TOTPCode == "" {
-			http.Error(w, "Código MFA obrigatório", http.StatusUnauthorized)
+			RespondWithError(w, http.StatusUnauthorized, "Código MFA obrigatório")
 			return
 		}
 		if mfaSecret == "" || !h.security.ValidateTOTP(mfaSecret, req.TOTPCode) {
-			http.Error(w, "Código MFA inválido", http.StatusUnauthorized)
+			RespondWithError(w, http.StatusUnauthorized, "Código MFA inválido")
 			return
 		}
 	}
@@ -107,12 +106,11 @@ func (h *TenantHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// Gera o Token JWT
 	token, err := h.jwt.GenerateToken(userID, tenantID, email, isMaster, roleName)
 	if err != nil {
-		http.Error(w, "Erro ao gerar token de acesso", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao gerar token de acesso")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"token": token,
 		"user": map[string]string{
 			"name": fullName,
@@ -124,14 +122,14 @@ func (h *TenantHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *TenantHandler) SetupMFA(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
-		http.Error(w, "Usuário não identificado", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Usuário não identificado")
 		return
 	}
 	userID := claims.UserID
 
 	secret, err := h.security.GenerateTOTPSecret()
 	if err != nil {
-		http.Error(w, "Erro ao gerar segredo MFA", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao gerar segredo MFA")
 		return
 	}
 	issuer := os.Getenv("MFA_ISSUER")
@@ -153,12 +151,11 @@ func (h *TenantHandler) SetupMFA(w http.ResponseWriter, r *http.Request) {
 		    updated_at = NOW()
 		WHERE id = $2`, secret, userID)
 	if err != nil {
-		http.Error(w, "Erro ao salvar MFA", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao salvar MFA")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	RespondWithJSON(w, http.StatusOK, map[string]string{
 		"secret":      secret,
 		"otpauth_url": otpauthURL,
 	})
@@ -167,7 +164,7 @@ func (h *TenantHandler) SetupMFA(w http.ResponseWriter, r *http.Request) {
 func (h *TenantHandler) VerifyMFA(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
-		http.Error(w, "Usuário não identificado", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Usuário não identificado")
 		return
 	}
 	userID := claims.UserID
@@ -176,17 +173,17 @@ func (h *TenantHandler) VerifyMFA(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 	var secret string
 	err := h.db.Conn.QueryRow("SELECT COALESCE(mfa_secret, '') FROM users WHERE id = $1", userID).Scan(&secret)
 	if err != nil || secret == "" {
-		http.Error(w, "MFA não configurado", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "MFA não configurado")
 		return
 	}
 	if !h.security.ValidateTOTP(secret, req.Code) {
-		http.Error(w, "Código MFA inválido", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Código MFA inválido")
 		return
 	}
 
@@ -197,18 +194,17 @@ func (h *TenantHandler) VerifyMFA(w http.ResponseWriter, r *http.Request) {
 		    updated_at = NOW()
 		WHERE id = $1`, userID)
 	if err != nil {
-		http.Error(w, "Erro ao ativar MFA", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao ativar MFA")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "MFA ativado com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "MFA ativado com sucesso"})
 }
 
 func (h *TenantHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
-		http.Error(w, "Usuário não identificado", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Usuário não identificado")
 		return
 	}
 	userID := claims.UserID
@@ -217,7 +213,7 @@ func (h *TenantHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Dados inválidos", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "Dados inválidos")
 		return
 	}
 
@@ -225,11 +221,11 @@ func (h *TenantHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 	var enabled bool
 	err := h.db.Conn.QueryRow("SELECT COALESCE(mfa_secret, ''), COALESCE(mfa_enabled, false) FROM users WHERE id = $1", userID).Scan(&secret, &enabled)
 	if err != nil || !enabled || secret == "" {
-		http.Error(w, "MFA não está ativo", http.StatusBadRequest)
+		RespondWithError(w, http.StatusBadRequest, "MFA não está ativo")
 		return
 	}
 	if !h.security.ValidateTOTP(secret, req.Code) {
-		http.Error(w, "Código MFA inválido", http.StatusUnauthorized)
+		RespondWithError(w, http.StatusUnauthorized, "Código MFA inválido")
 		return
 	}
 
@@ -240,12 +236,11 @@ func (h *TenantHandler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 		    updated_at = NOW()
 		WHERE id = $1`, userID)
 	if err != nil {
-		http.Error(w, "Erro ao desativar MFA", http.StatusInternalServerError)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao desativar MFA")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "MFA desativado com sucesso"})
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "MFA desativado com sucesso"})
 }
 
 func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
@@ -464,6 +459,7 @@ func (h *TenantHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	var res struct {
 		FullName             string `json:"full_name"`
 		Email                string `json:"email"`
+		Role                 string `json:"role"`
 		AvatarURL            string `json:"avatar_url"`
 		JobTitle             string `json:"job_title"`
 		Bio                  string `json:"bio"`
@@ -471,12 +467,14 @@ func (h *TenantHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		SecuritySettings     string `json:"security_settings"`
 	}
 
-	query := `SELECT full_name, email, COALESCE(avatar_url, ''), COALESCE(job_title, ''), 
-	          COALESCE(bio, ''), notification_settings::text, 
-	          jsonb_set(COALESCE(security_settings, '{}'::jsonb), '{two_factor}', to_jsonb(COALESCE(mfa_enabled, false)), true)::text 
-	          FROM users WHERE id = $1`
+	query := `SELECT u.full_name, u.email, r.name as role, COALESCE(u.avatar_url, ''), COALESCE(u.job_title, ''), 
+	          COALESCE(u.bio, ''), u.notification_settings::text, 
+	          jsonb_set(COALESCE(u.security_settings, '{}'::jsonb), '{two_factor}', to_jsonb(COALESCE(u.mfa_enabled, false)), true)::text 
+	          FROM users u
+	          JOIN roles r ON u.role_id = r.id
+	          WHERE u.id = $1`
 	err := h.db.Conn.QueryRow(query, userID).Scan(
-		&res.FullName, &res.Email, &res.AvatarURL, &res.JobTitle,
+		&res.FullName, &res.Email, &res.Role, &res.AvatarURL, &res.JobTitle,
 		&res.Bio, &res.NotificationSettings, &res.SecuritySettings,
 	)
 	if err != nil {
@@ -530,13 +528,18 @@ func (h *TenantHandler) UpdateUserProfile(w http.ResponseWriter, r *http.Request
 }
 
 type AccountSettingsResponse struct {
-	Name                           string `json:"name"`
-	CorporateEmail                 string `json:"corporate_email"`
-	Phone                          string `json:"phone"`
-	Address                        string `json:"address"`
-	AccountSettings                string `json:"account_settings"`
-	ConfidentialRequired           bool   `json:"confidential_required"`
+	Name                            string `json:"name"`
+	CorporateEmail                  string `json:"corporate_email"`
+	Phone                           string `json:"phone"`
+	Address                         string `json:"address"`
+	AccountSettings                 string `json:"account_settings"`
+	ConfidentialRequired            bool   `json:"confidential_required"`
 	ConfidentialPasswordConfigured bool   `json:"confidential_password_configured"`
+	WatermarkText                   string `json:"watermark_text"`
+	WatermarkSize                   int    `json:"watermark_size"`
+	WatermarkOffsetY                int    `json:"watermark_offset_y"`
+	WatermarkRotation               int    `json:"watermark_rotation"`
+	WatermarkOpacity                int    `json:"watermark_opacity"`
 }
 
 type AccountSettingsUpdateRequest struct {
@@ -547,6 +550,11 @@ type AccountSettingsUpdateRequest struct {
 	AccountSettings      string `json:"account_settings"`
 	ConfidentialRequired *bool  `json:"confidential_required"`
 	ConfidentialPassword string `json:"confidential_password"`
+	WatermarkText        string `json:"watermark_text"`
+	WatermarkSize        *int   `json:"watermark_size"`
+	WatermarkOffsetY     *int   `json:"watermark_offset_y"`
+	WatermarkRotation    *int   `json:"watermark_rotation"`
+	WatermarkOpacity     *int   `json:"watermark_opacity"`
 }
 
 func (h *TenantHandler) GetAccountSettings(w http.ResponseWriter, r *http.Request) {
@@ -560,11 +568,17 @@ func (h *TenantHandler) GetAccountSettings(w http.ResponseWriter, r *http.Reques
 	query := `SELECT name, COALESCE(corporate_email, ''), COALESCE(phone, ''), 
 	          COALESCE(address, ''), account_settings::text, 
 	          COALESCE(confidential_required, false),
-	          (COALESCE(confidential_password_hash, '') <> '')
-	          FROM tenants WHERE id = $1`
+	          (COALESCE(confidential_password_hash, '') <> ''),
+	          COALESCE(watermark_text, 'CONFIDENCIAL'),
+	          COALESCE(watermark_size, 80),
+	          COALESCE(watermark_offset_y, 0),
+	          COALESCE(watermark_rotation, 45),
+	          COALESCE(watermark_opacity, 20)
+	          FROM tenants WHERE id = $1` 
 	err := h.db.Conn.QueryRow(query, tenantID).Scan(
 		&res.Name, &res.CorporateEmail, &res.Phone, &res.Address, &res.AccountSettings,
 		&res.ConfidentialRequired, &res.ConfidentialPasswordConfigured,
+		&res.WatermarkText, &res.WatermarkSize, &res.WatermarkOffsetY, &res.WatermarkRotation, &res.WatermarkOpacity,
 	)
 	if err != nil {
 		http.Error(w, "Erro ao buscar configurações da conta", http.StatusInternalServerError)
@@ -588,19 +602,34 @@ func (h *TenantHandler) UpdateAccountSettings(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if req.WatermarkSize != nil {
+		log.Printf("[SETTINGS_DEBUG] Atualizando marca d'água: Texto='%s', Tamanho=%d", req.WatermarkText, *req.WatermarkSize)
+	}
+
 	query := `UPDATE tenants 
-	          SET name = $1, corporate_email = $2, phone = $3, address = $4, 
-	              account_settings = $5::jsonb, 
+	          SET name = COALESCE($1, name), 
+	              corporate_email = COALESCE($2, corporate_email), 
+	              phone = COALESCE($3, phone), 
+	              address = COALESCE($4, address), 
+	              account_settings = COALESCE($5, account_settings),
 	              confidential_required = COALESCE($6, confidential_required),
+	              watermark_text = COALESCE($7, watermark_text),
+	              watermark_size = COALESCE($8, watermark_size),
+	              watermark_offset_y = COALESCE($9, watermark_offset_y),
+	              watermark_rotation = COALESCE($10, watermark_rotation),
+	              watermark_opacity = COALESCE($11, watermark_opacity),
 	              updated_at = NOW() 
-	          WHERE id = $7`
-	_, err := h.db.Conn.Exec(query,
-		req.Name, req.CorporateEmail, req.Phone, req.Address, req.AccountSettings, req.ConfidentialRequired, tenantID,
+	          WHERE id = $12`
+	res_db, err := h.db.Conn.Exec(query,
+		req.Name, req.CorporateEmail, req.Phone, req.Address, req.AccountSettings, 
+		req.ConfidentialRequired, req.WatermarkText, req.WatermarkSize, req.WatermarkOffsetY, req.WatermarkRotation, req.WatermarkOpacity, tenantID,
 	)
 	if err != nil {
 		http.Error(w, "Erro ao atualizar conta", http.StatusInternalServerError)
 		return
 	}
+	rows, _ := res_db.RowsAffected()
+	log.Printf("[SETTINGS_DEBUG] Update finalizado. Linhas afetadas: %d", rows)
 
 	if req.ConfidentialPassword != "" {
 		hashedPassword, err := h.security.HashPassword(req.ConfidentialPassword)

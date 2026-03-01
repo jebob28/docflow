@@ -50,6 +50,7 @@ interface TrashItem {
   created_at: string;
   deleted_at: string;
   can_edit: boolean;
+  document_type?: string;
 }
 
 export default function Trash() {
@@ -255,10 +256,15 @@ export default function Trash() {
         </div>
 
         <h3 className="font-bold text-slate-800 text-sm truncate mb-1" title={item.name}>{item.name}</h3>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-100 text-slate-500 uppercase tracking-tighter">
             {item.sector_name || 'Geral'}
           </span>
+          {item.document_type && (
+            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+              {item.document_type}
+            </span>
+          )}
           <span className="text-[10px] font-bold text-slate-400">
             • {formatSize(item.size)}
           </span>
@@ -395,9 +401,16 @@ export default function Trash() {
                             <div className="p-2 rounded-xl bg-slate-50">
                               {getFileIcon(item.type, item.extension)}
                             </div>
-                            <span className="font-bold text-slate-700 text-sm group-hover:text-slate-900 transition-colors truncate max-w-[300px]">
-                              {item.name}
-                            </span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-slate-700 text-sm group-hover:text-slate-900 transition-colors truncate max-w-[300px]">
+                                {item.name}
+                              </span>
+                              {item.document_type && (
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                  {item.document_type}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="text-slate-500 text-xs font-bold">

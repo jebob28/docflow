@@ -11,7 +11,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      disable: true, // Desabilitar PWA em dev para evitar problemas de conexão com a API
       registerType: 'autoUpdate',
+      devOptions: {
+        enabled: true, // Habilitar em desenvolvimento para debug
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'GED Platform SaaS',
@@ -44,9 +48,10 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'https://localhost:8081',
+        target: 'https://127.0.0.1:8081',
         changeOrigin: true,
         secure: false, // Permitir certificados auto-assinados no proxy
+        rewrite: (path) => path, // Garantir que o path não seja alterado de forma inesperada
       },
     },
   },

@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS watermark_offset_y INTEGER DEFAULT 0;

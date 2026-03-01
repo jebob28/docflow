@@ -1,15 +1,22 @@
 package service
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base32"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -20,7 +27,8 @@ import (
 )
 
 type SecurityService struct {
-	jwtSecret []byte
+	jwtSecret        []byte
+	virusTotalAPIKey string
 }
 
 func NewSecurityService() *SecurityService {
@@ -28,7 +36,13 @@ func NewSecurityService() *SecurityService {
 	if secret == "" {
 		secret = "segredo-padrao-mudar-em-producao"
 	}
-	return &SecurityService{jwtSecret: []byte(secret)}
+
+	vtKey := os.Getenv("API_KEY_VIRUSTOTAL")
+
+	return &SecurityService{
+		jwtSecret:        []byte(secret),
+		virusTotalAPIKey: vtKey,
+	}
 }
 
 // GenerateRandomKey gera uma chave aleatória de 32 bytes (AES-256)
@@ -98,22 +112,198 @@ func (s *SecurityService) ValidatePasswordStrength(password string) error {
 		return fmt.Errorf("senha deve ter pelo menos 12 caracteres")
 	}
 	var hasUpper, hasLower, hasDigit, hasSpecial bool
-	for _, r := range password {
+	for _, char := range password {
 		switch {
-		case unicode.IsUpper(r):
+		case unicode.IsUpper(char):
 			hasUpper = true
-		case unicode.IsLower(r):
+		case unicode.IsLower(char):
 			hasLower = true
-		case unicode.IsDigit(r):
+		case unicode.IsDigit(char):
 			hasDigit = true
-		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
 			hasSpecial = true
 		}
 	}
+
 	if !hasUpper || !hasLower || !hasDigit || !hasSpecial {
-		return fmt.Errorf("senha deve conter maiúscula, minúscula, número e caractere especial")
+		return fmt.Errorf("senha deve conter letras maiúsculas, minúsculas, números e caracteres especiais")
 	}
 	return nil
+}
+
+// VirusTotalResponse representa a resposta simplificada da API v3 do VirusTotal
+type VirusTotalResponse struct {
+	Data struct {
+		Attributes struct {
+			LastAnalysisStats struct {
+				Malicious  int `json:"malicious"`
+				Suspicious int `json:"suspicious"`
+				Harmless   int `json:"harmless"`
+				Undetected int `json:"undetected"`
+			} `json:"last_analysis_stats"`
+		} `json:"attributes"`
+	} `json:"data"`
+}
+
+// ScanFileHash verifica se o hash do arquivo já é conhecido pelo VirusTotal
+// Retorna isSafe (true se não houver detecções maliciosas) e um erro se houver falha na API
+func (s *SecurityService) ScanFileHash(fileBytes []byte) (bool, string, error) {
+	if s.virusTotalAPIKey == "" {
+		log.Println("Aviso: VIRUSTOTAL_API_KEY não configurada. Ignorando scan.")
+		return true, "SKIPPED_NO_KEY", nil
+	}
+
+	// 1. Calcular hash SHA-256
+	hash := sha256.Sum256(fileBytes)
+	hashStr := hex.EncodeToString(hash[:])
+
+	// 2. Consultar VirusTotal por hash (API v3)
+	url := fmt.Sprintf("https://www.virustotal.com/api/v3/files/%s", hashStr)
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("x-apikey", s.virusTotalAPIKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return true, "ERROR_VT_API", err // Falha na API não bloqueia o sistema
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		// Hash não encontrado = Arquivo novo ou nunca escaneado
+		return true, "NOT_FOUND_IN_VT", nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return true, "VT_API_ERROR_CODE", fmt.Errorf("VirusTotal API retornou status %d", resp.StatusCode)
+	}
+
+	var vtResp VirusTotalResponse
+	if err := json.NewDecoder(resp.Body).Decode(&vtResp); err != nil {
+		return true, "VT_DECODE_ERROR", err
+	}
+
+	// 3. Analisar resultados
+	malicious := vtResp.Data.Attributes.LastAnalysisStats.Malicious
+	suspicious := vtResp.Data.Attributes.LastAnalysisStats.Suspicious
+
+	if malicious > 0 {
+		return false, fmt.Sprintf("MALICIOUS(%d)", malicious), nil
+	}
+
+	if suspicious > 5 {
+		// Limite arbitrário de suspeitos
+		return false, fmt.Sprintf("SUSPICIOUS(%d)", suspicious), nil
+	}
+
+	return true, "SAFE", nil
+}
+
+// VTUploadResponse representa a resposta de upload do VirusTotal
+type VTUploadResponse struct {
+	Data struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+	} `json:"data"`
+}
+
+// VTAnalysisResponse representa a resposta de análise do VirusTotal
+type VTAnalysisResponse struct {
+	Data struct {
+		Attributes struct {
+			Status string `json:"status"` // queued, in-progress, completed
+			Stats  struct {
+				Malicious  int `json:"malicious"`
+				Suspicious int `json:"suspicious"`
+				Harmless   int `json:"harmless"`
+				Undetected int `json:"undetected"`
+			} `json:"stats"`
+		} `json:"attributes"`
+	} `json:"data"`
+}
+
+// UploadFileToVT faz o upload completo de um arquivo para o VirusTotal
+// Retorna o ID da análise para consulta posterior
+func (s *SecurityService) UploadFileToVT(fileBytes []byte, filename string) (string, error) {
+	if s.virusTotalAPIKey == "" {
+		return "", fmt.Errorf("VIRUSTOTAL_API_KEY não configurada")
+	}
+
+	// 1. Criar form-data
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return "", err
+	}
+	part.Write(fileBytes)
+	writer.Close()
+
+	// 2. Fazer requisição POST para v3/files
+	req, _ := http.NewRequest("POST", "https://www.virustotal.com/api/v3/files", body)
+	req.Header.Set("x-apikey", s.virusTotalAPIKey)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{Timeout: 60 * time.Second} // Timeout maior para upload
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("VirusTotal upload falhou com status %d", resp.StatusCode)
+	}
+
+	var vtResp VTUploadResponse
+	if err := json.NewDecoder(resp.Body).Decode(&vtResp); err != nil {
+		return "", err
+	}
+
+	return vtResp.Data.ID, nil
+}
+
+// GetVTAnalysisResult consulta o status de uma análise no VirusTotal
+// Retorna isSafe, status (queued, completed), e erro
+func (s *SecurityService) GetVTAnalysisResult(analysisID string) (bool, string, error) {
+	if s.virusTotalAPIKey == "" {
+		return true, "SKIPPED", nil
+	}
+
+	url := fmt.Sprintf("https://www.virustotal.com/api/v3/analyses/%s", analysisID)
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("x-apikey", s.virusTotalAPIKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return true, "ERROR", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return true, "ERROR", fmt.Errorf("VirusTotal analysis consulta falhou com status %d", resp.StatusCode)
+	}
+
+	var vtResp VTAnalysisResponse
+	if err := json.NewDecoder(resp.Body).Decode(&vtResp); err != nil {
+		return true, "ERROR", err
+	}
+
+	status := vtResp.Data.Attributes.Status
+	if status != "completed" {
+		return true, status, nil // Ainda em processamento
+	}
+
+	// Analisar resultados finais
+	malicious := vtResp.Data.Attributes.Stats.Malicious
+	suspicious := vtResp.Data.Attributes.Stats.Suspicious
+
+	if malicious > 0 || suspicious > 5 {
+		return false, "completed", nil
+	}
+
+	return true, "completed", nil
 }
 
 // GenerateToken gera um novo JWT para o usuário

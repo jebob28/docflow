@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
@@ -77,6 +78,15 @@ func parseEnvBool(value string) bool {
 // UploadEncrypted salva um arquivo criptografado no MinIO
 func (s *StorageService) UploadEncrypted(ctx context.Context, objectName string, reader io.Reader, size int64, contentType string) error {
 	_, err := s.client.PutObject(ctx, s.bucket, objectName, reader, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	return err
+}
+
+// Upload salva um arquivo no MinIO (genérico)
+func (s *StorageService) Upload(ctx context.Context, objectName string, data []byte, contentType string) error {
+	reader := bytes.NewReader(data)
+	_, err := s.client.PutObject(ctx, s.bucket, objectName, reader, int64(len(data)), minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	return err
