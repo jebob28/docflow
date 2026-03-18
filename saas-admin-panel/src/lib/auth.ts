@@ -58,7 +58,24 @@ export const authService = {
   },
   
   isAuthenticated() {
-    return !!localStorage.getItem('admin_token');
+    const token = localStorage.getItem('admin_token');
+    if (!token || token === 'undefined' || token === 'null') {
+      return false;
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload?.exp && Date.now() / 1000 >= payload.exp) {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        return false;
+      }
+      return true;
+    } catch {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+      return false;
+    }
   },
   
   getUser() {

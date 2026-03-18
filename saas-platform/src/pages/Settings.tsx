@@ -16,6 +16,7 @@ import {
   FileText, LogOut
 } from 'lucide-react';
 import { toast } from 'sonner';
+import QRCode from 'react-qr-code';
 
 interface UserProfile {
   full_name: string;
@@ -80,11 +81,11 @@ export default function Settings() {
     security_settings: '{"two_factor": false, "session_timeout": 30}'
   });
   const [customization, setCustomization] = useState<CustomizationSettings>({
-    primary_color: '#1a355b', 
-    secondary_color: '#f8fafc', 
+    primary_color: 'var(--color-primary)', 
+    secondary_color: 'var(--secondary)', 
     sidebar_color: '#ffffff',
-    sidebar_text_color: '#64748b',
-    sidebar_icon_color: '#94a3b8',
+    sidebar_text_color: 'var(--muted-foreground)',
+    sidebar_icon_color: 'var(--muted-foreground)',
     sidebar_font_weight: 'normal',
     logo_url: '', 
     custom_settings: '{}'
@@ -187,11 +188,11 @@ export default function Settings() {
       if (cRes.ok) {
         const data = await cRes.json();
         setCustomization({
-          primary_color: data.primary_color || '#1a355b',
-          secondary_color: data.secondary_color || '#f8fafc',
+          primary_color: data.primary_color || 'var(--color-primary)',
+          secondary_color: data.secondary_color || 'var(--secondary)',
           sidebar_color: data.sidebar_color || '#ffffff',
-          sidebar_text_color: data.sidebar_text_color || '#64748b',
-          sidebar_icon_color: data.sidebar_icon_color || '#94a3b8',
+          sidebar_text_color: data.sidebar_text_color || 'var(--muted-foreground)',
+          sidebar_icon_color: data.sidebar_icon_color || 'var(--muted-foreground)',
           sidebar_font_weight: data.sidebar_font_weight || 'normal',
           logo_url: data.logo_url || '',
           custom_settings: data.custom_settings || '{}'
@@ -210,7 +211,10 @@ export default function Settings() {
           confidential_password: '',
           confidential_password_configured: !!data.confidential_password_configured,
           watermark_text: data.watermark_text || '',
-          watermark_size: data.watermark_size || 80
+          watermark_size: data.watermark_size || 80,
+          watermark_offset_y: data.watermark_offset_y ?? 0,
+          watermark_rotation: data.watermark_rotation ?? 0,
+          watermark_opacity: data.watermark_opacity ?? 0.2
         });
       }
       
@@ -527,7 +531,7 @@ export default function Settings() {
     return {
       brand_bg_color: custom.sidebar_brand_bg || customization.primary_color,
       item_hover_bg: custom.sidebar_item_hover_bg || '#f1f5f9',
-      item_active_bg: custom.sidebar_item_active_bg || '#1a355b',
+      item_active_bg: custom.sidebar_item_active_bg || 'var(--primary)',
       item_active_text: custom.sidebar_item_active_text || '#ffffff',
       item_active_icon: custom.sidebar_item_active_icon || '#ffffff',
       show_brand_section: custom.sidebar_show_brand !== false,
@@ -553,8 +557,8 @@ export default function Settings() {
     ];
 
     return (
-      <div className="rounded-2xl border border-slate-100 overflow-hidden shadow-sm bg-white h-full flex flex-col min-h-[400px]">
-        <div className="p-3 border-b border-slate-50 flex items-center gap-2 bg-slate-50/50">
+      <div className="rounded-2xl border border-border overflow-hidden shadow-sm bg-white h-full flex flex-col min-h-[400px]">
+        <div className="p-3 border-b border-border flex items-center gap-2 bg-slate-50/50">
           <div className="flex gap-1.5">
             <div className="w-2.5 h-2.5 rounded-full bg-red-400/20 border border-red-400/30" />
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400/20 border border-amber-400/30" />
@@ -610,7 +614,7 @@ export default function Settings() {
             ))}
           </div>
 
-          <div className="p-4 border-t border-slate-50 mt-auto">
+          <div className="p-4 border-t border-border mt-auto">
             <div 
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-red-500 bg-red-50/50"
             >
@@ -637,7 +641,7 @@ export default function Settings() {
       <div className="flex gap-2">
         <div className="relative group cursor-pointer">
           <div 
-            className="h-12 w-14 rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-105" 
+            className="h-12 w-14 rounded-xl border border-border shadow-sm transition-transform group-hover:scale-105" 
             style={{ backgroundColor: value }}
             onClick={() => document.getElementById(inputId)?.click()}
           />
@@ -684,7 +688,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="sticky top-0 z-20 bg-[#f8fafc]/95 backdrop-blur-xl border-b border-slate-100 mb-6 sm:mb-8">
+        <div className="sticky top-0 z-20 bg-[#f8fafc]/95 backdrop-blur-xl border-b border-border mb-6 sm:mb-8">
           <div className="max-w-6xl mx-auto">
             <TabsList className="bg-transparent w-full justify-start h-auto p-0 gap-6 sm:gap-8 rounded-none overflow-x-auto no-scrollbar flex-nowrap whitespace-nowrap px-4 sm:px-0">
               {tabs.map((tab) => (
@@ -703,11 +707,11 @@ export default function Settings() {
         <div className="px-4 sm:px-0">
           {/* ABA PERFIL */}
           <TabsContent value="perfil" className="space-y-6 sm:space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300 outline-none">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 bg-white p-6 sm:p-8 rounded-2xl border border-border shadow-sm">
               <div className="relative group shrink-0">
                 <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-4 border-white shadow-2xl ring-1 ring-slate-100">
                   <AvatarImage src={profile.avatar_url} />
-                  <AvatarFallback className="bg-gradient-to-br from-blue-50 to-blue-100 text-[#1a355b] text-2xl sm:text-3xl font-black">
+                  <AvatarFallback className="bg-gradient-to-br from-blue-50 to-blue-100 text-primary text-2xl sm:text-3xl font-black">
                     {getInitials(profile.full_name || 'User')}
                   </AvatarFallback>
                 </Avatar>
@@ -730,7 +734,7 @@ export default function Settings() {
                   <Button 
                     size="sm" 
                     variant="default" 
-                    className="bg-primary text-white hover:bg-[#132845] h-11 sm:h-10 px-6 flex-1 sm:flex-none rounded-xl font-bold text-xs" 
+                    className="bg-primary text-white hover:bg-primary/90 h-11 sm:h-10 px-6 flex-1 sm:flex-none rounded-xl font-bold text-xs" 
                     onClick={() => {
                       const url = prompt('URL do Avatar:', profile.avatar_url);
                       if (url !== null) setProfile({...profile, avatar_url: url});
@@ -751,10 +755,10 @@ export default function Settings() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
                 <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b]">
+                    <div className="p-2.5 rounded-xl bg-blue-50 text-primary">
                       <User className="h-5 w-5" />
                     </div>
                     <div>
@@ -793,7 +797,7 @@ export default function Settings() {
                 </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
                 <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
@@ -823,7 +827,7 @@ export default function Settings() {
               <Button 
                 onClick={handleSaveProfile} 
                 disabled={saving}
-                className="h-12 px-10 rounded-xl bg-[#1a355b] hover:bg-[#10213d] text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
+                className="h-12 px-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
               >
                 {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Salvar Alterações'}
               </Button>
@@ -832,10 +836,10 @@ export default function Settings() {
 
         {/* ABA CONTA */}
         <TabsContent value="conta" className="space-y-6 sm:space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300 outline-none">
-          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
             <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b]">
+                <div className="p-2.5 rounded-xl bg-blue-50 text-primary">
                   <Building className="h-5 w-5" />
                 </div>
                 <div>
@@ -886,7 +890,7 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
             <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600">
@@ -899,7 +903,7 @@ export default function Settings() {
               </div>
             </CardHeader>
             <CardContent className="px-6 sm:px-8 pb-6 sm:pb-8 space-y-5">
-              <div className="flex items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-100/50">
+              <div className="flex items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-border/50">
                 <div className="space-y-1">
                   <Label className="text-sm sm:text-base font-black text-slate-800 tracking-tight cursor-pointer" htmlFor="confidential-required">Solicitar senha ao abrir</Label>
                   <p className="text-[10px] sm:text-xs font-bold text-slate-400 leading-relaxed">Arquivos com a etiqueta Confidencial exigem autenticação adicional.</p>
@@ -908,7 +912,7 @@ export default function Settings() {
                   id="confidential-required"
                   checked={account.confidential_required}
                   onCheckedChange={(checked) => setAccount({ ...account, confidential_required: checked })}
-                  className="data-[state=checked]:bg-[#1a355b]"
+                  className="data-[state=checked]:bg-primary"
                 />
               </div>
               <div className="space-y-2">
@@ -928,7 +932,7 @@ export default function Settings() {
               <div className="space-y-2 pt-2">
                 <Label className="text-sm font-bold text-slate-700 ml-1">Texto da Marca d'água</Label>
                 <div className="relative group">
-                  <TextQuote className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+                  <TextQuote className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
                   <Input 
                     value={account.watermark_text}
                     onChange={e => setAccount({...account, watermark_text: e.target.value})}
@@ -944,7 +948,7 @@ export default function Settings() {
               <div className="space-y-4 pt-2">
                 <div className="flex items-center justify-between ml-1">
                   <Label className="text-sm font-bold text-slate-700">Tamanho da Marca d'água</Label>
-                  <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_size}%</span>
+                  <span className="text-xs font-black text-primary bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_size}%</span>
                 </div>
                 <div className="px-1">
                   <input 
@@ -954,7 +958,7 @@ export default function Settings() {
                     step="5"
                     value={account.watermark_size}
                     onChange={e => setAccount({...account, watermark_size: parseInt(e.target.value)})}
-                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
                   />
                   <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
                     <span>Pequeno</span>
@@ -967,7 +971,7 @@ export default function Settings() {
               <div className="space-y-4 pt-2">
                 <div className="flex items-center justify-between ml-1">
                   <Label className="text-sm font-bold text-slate-700">Posição Vertical (Altura)</Label>
-                  <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_offset_y || 0}px</span>
+                  <span className="text-xs font-black text-primary bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_offset_y || 0}px</span>
                 </div>
                 <div className="px-1">
                   <input 
@@ -977,7 +981,7 @@ export default function Settings() {
                     step="10"
                     value={account.watermark_offset_y || 0}
                     onChange={e => setAccount({...account, watermark_offset_y: parseInt(e.target.value)})}
-                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
                   />
                   <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
                     <span>Inferior</span>
@@ -990,7 +994,7 @@ export default function Settings() {
               <div className="space-y-4 pt-2">
                 <div className="flex items-center justify-between ml-1">
                   <Label className="text-sm font-bold text-slate-700">Rotação do Texto</Label>
-                  <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_rotation || 45}°</span>
+                  <span className="text-xs font-black text-primary bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_rotation || 45}°</span>
                 </div>
                 <div className="px-1">
                   <input 
@@ -1000,7 +1004,7 @@ export default function Settings() {
                     step="1"
                     value={account.watermark_rotation || 45}
                     onChange={e => setAccount({...account, watermark_rotation: parseInt(e.target.value)})}
-                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                    className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
                   />
                   <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
                      <span>Horizontal (0°)</span>
@@ -1013,7 +1017,7 @@ export default function Settings() {
                <div className="space-y-4 pt-2">
                  <div className="flex items-center justify-between ml-1">
                    <Label className="text-sm font-bold text-slate-700">Opacidade (Claro/Escuro)</Label>
-                   <span className="text-xs font-black text-[#1a355b] bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_opacity || 20}%</span>
+                   <span className="text-xs font-black text-primary bg-blue-50 px-2 py-1 rounded-lg">{account.watermark_opacity || 20}%</span>
                  </div>
                  <div className="px-1">
                    <input 
@@ -1023,7 +1027,7 @@ export default function Settings() {
                      step="1"
                      value={account.watermark_opacity || 20}
                      onChange={e => setAccount({...account, watermark_opacity: parseInt(e.target.value)})}
-                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1a355b]"
+                     className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
                    />
                    <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
                      <span>Muito Claro</span>
@@ -1034,15 +1038,15 @@ export default function Settings() {
                </div>
 
               {/* Preview da Marca d'água A4 */}
-              <div className="space-y-3 pt-4 border-t border-slate-100">
+              <div className="space-y-3 pt-4 border-t border-border">
                 <div className="flex items-center justify-between ml-1">
                   <Label className="text-sm font-bold text-slate-700">Prévia Visual (Formato A4)</Label>
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">Proporção Real</span>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-border">Proporção Real</span>
                 </div>
                 
-                <div className="flex justify-center bg-slate-50 py-8 rounded-2xl border border-slate-100">
+                <div className="flex justify-center bg-slate-50 py-8 rounded-2xl border border-border">
                   <div 
-                    className="relative bg-white shadow-2xl border border-slate-200 overflow-hidden flex items-center justify-center transition-all duration-300"
+                    className="relative bg-white shadow-2xl border border-border overflow-hidden flex items-center justify-center transition-all duration-300"
                     style={{ 
                       width: '210px', 
                       height: '297px',
@@ -1089,7 +1093,7 @@ export default function Settings() {
 
           <div className="flex justify-end pt-4 pb-10">
             <Button 
-              className="h-12 px-10 rounded-xl bg-[#1a355b] hover:bg-[#10213d] text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]" 
+              className="h-12 px-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]" 
               onClick={handleSaveAccount}
               disabled={saving}
             >
@@ -1100,10 +1104,10 @@ export default function Settings() {
 
         {/* ABA NOTIFICAÇÕES */}
         <TabsContent value="notificações" className="space-y-6 sm:space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300 outline-none">
-          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
             <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b]">
+                <div className="p-2.5 rounded-xl bg-blue-50 text-primary">
                   <Bell className="h-5 w-5" />
                 </div>
                 <div>
@@ -1120,7 +1124,7 @@ export default function Settings() {
               ].map((item) => {
                 const settings = safeParseJson(profile.notification_settings);
                 return (
-                  <div key={item.key} className="flex items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-100/50 hover:bg-slate-100 transition-colors">
+                  <div key={item.key} className="flex items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-border/50 hover:bg-slate-100 transition-colors">
                     <div className="space-y-1">
                       <Label className="text-sm sm:text-base font-black text-slate-800 tracking-tight cursor-pointer" htmlFor={`notif-${item.key}`}>{item.label}</Label>
                       <p className="text-[10px] sm:text-xs font-bold text-slate-400 leading-relaxed">{item.desc}</p>
@@ -1132,7 +1136,7 @@ export default function Settings() {
                         const next = { ...settings, [item.key]: checked };
                         setProfile({ ...profile, notification_settings: JSON.stringify(next) });
                       }}
-                      className="data-[state=checked]:bg-[#1a355b]"
+                      className="data-[state=checked]:bg-primary"
                     />
                   </div>
                 );
@@ -1142,7 +1146,7 @@ export default function Settings() {
           
           <div className="flex justify-end pt-4 pb-10">
             <Button 
-              className="h-12 px-10 rounded-xl bg-[#1a355b] hover:bg-[#10213d] text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]" 
+              className="h-12 px-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]" 
               onClick={handleSaveProfile}
               disabled={saving}
             >
@@ -1154,10 +1158,10 @@ export default function Settings() {
         {/* ABA SEGURANÇA */}
         <TabsContent value="segurança" className="space-y-6 sm:space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300 outline-none">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-            <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+            <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
               <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b]">
+                  <div className="p-2.5 rounded-xl bg-blue-50 text-primary">
                     <Shield className="h-5 w-5" />
                   </div>
                   <div>
@@ -1186,7 +1190,7 @@ export default function Settings() {
                   />
                 </div>
                 <Button 
-                  className="w-full h-12 rounded-xl bg-[#1a355b] text-white hover:bg-[#10213d] font-bold text-xs sm:text-sm mt-2 transition-all shadow-lg" 
+                  className="w-full h-12 rounded-xl bg-primary text-white hover:bg-primary/90 font-bold text-xs sm:text-sm mt-2 transition-all shadow-lg" 
                   onClick={handleUpdatePassword}
                   disabled={saving}
                 >
@@ -1196,10 +1200,10 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+            <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
               <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b]">
+                  <div className="p-2.5 rounded-xl bg-blue-50 text-primary">
                     <Shield className="h-5 w-5" />
                   </div>
                   <div>
@@ -1209,7 +1213,7 @@ export default function Settings() {
                 </div>
               </CardHeader>
               <CardContent className="px-6 sm:px-8 pb-6 sm:pb-8 space-y-6">
-                <div className="space-y-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="space-y-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-border">
                   <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
                       <Label className="text-sm sm:text-base font-black text-slate-800 tracking-tight">Autenticação em 2 fatores</Label>
@@ -1244,17 +1248,25 @@ export default function Settings() {
                         </div>
                       </div>
                       {mfaOtpAuthUrl && (
-                        <div className="space-y-2">
-                          <Label className="text-xs font-bold text-slate-500">URL otpauth</Label>
-                          <div className="flex gap-2">
-                            <Input value={mfaOtpAuthUrl} readOnly className="h-10 bg-white text-xs" />
-                            <Button
-                              variant="outline"
-                              className="h-10 text-xs font-bold"
-                              onClick={() => handleCopyValue(mfaOtpAuthUrl)}
-                            >
-                              Copiar
-                            </Button>
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500">QR code</Label>
+                            <div className="flex justify-center rounded-xl bg-white p-4 border border-border">
+                              <QRCode value={mfaOtpAuthUrl} size={160} />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500">URL otpauth</Label>
+                            <div className="flex gap-2">
+                              <Input value={mfaOtpAuthUrl} readOnly className="h-10 bg-white text-xs" />
+                              <Button
+                                variant="outline"
+                                className="h-10 text-xs font-bold"
+                                onClick={() => handleCopyValue(mfaOtpAuthUrl)}
+                              >
+                                Copiar
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1268,7 +1280,7 @@ export default function Settings() {
                         />
                       </div>
                       <Button
-                        className="w-full h-10 rounded-xl bg-[#1a355b] text-white hover:bg-[#10213d] font-bold text-xs"
+                        className="w-full h-10 rounded-xl bg-primary text-white hover:bg-primary/90 font-bold text-xs"
                         onClick={handleVerifyMFA}
                         disabled={mfaBusy}
                       >
@@ -1305,14 +1317,14 @@ export default function Settings() {
 
         {/* ABA EQUIPE */}
         <TabsContent value="equipe" className="space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 sm:p-8 rounded-2xl border border-border shadow-sm">
             <div className="text-center sm:text-left">
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Equipe</h2>
               <p className="text-sm sm:text-base text-slate-500 font-bold mt-1">Gerencie os usuários da conta.</p>
             </div>
             <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto h-12 px-8 rounded-xl bg-[#1a355b] text-white hover:bg-[#10213d] font-bold text-sm shadow-xl shadow-blue-900/10 transition-all">
+                <Button className="w-full sm:w-auto h-12 px-8 rounded-xl bg-primary text-white hover:bg-primary/90 font-bold text-sm shadow-xl shadow-blue-900/10 transition-all">
                   <Plus className="h-5 w-5 mr-2" /> Novo Membro
                 </Button>
               </DialogTrigger>
@@ -1355,10 +1367,10 @@ export default function Settings() {
                       value={newMember.role_name}
                       onValueChange={val => setNewMember({...newMember, role_name: val})}
                     >
-                      <SelectTrigger className="h-12 bg-slate-100 border-none rounded-xl font-bold focus:ring-primary/10">
+                      <SelectTrigger className="h-12 bg-white border-none rounded-xl font-bold focus:ring-primary/10">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-2xl border-slate-100">
+                      <SelectContent className="rounded-xl shadow-2xl border-border">
                         <SelectItem value="ADMIN" className="font-bold text-xs py-3">Administrador</SelectItem>
                         <SelectItem value="USER" className="font-bold text-xs py-3">Usuário Padrão</SelectItem>
                       </SelectContent>
@@ -1367,7 +1379,7 @@ export default function Settings() {
                 </div>
                 <DialogFooter className="px-8 pb-8 pt-2">
                   <Button variant="ghost" onClick={() => setInviteDialogOpen(false)} className="h-12 rounded-xl font-bold">Cancelar</Button>
-                  <Button onClick={handleInviteMember} disabled={saving} className="h-12 rounded-xl bg-[#1a355b] text-white font-bold px-8">Convidar</Button>
+                  <Button onClick={handleInviteMember} disabled={saving} className="h-12 rounded-xl bg-primary text-white font-bold px-8">Convidar</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -1375,9 +1387,9 @@ export default function Settings() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {teamMembers.map((member) => (
-              <Card key={member.id} className="border-none shadow-sm bg-white rounded-2xl hover:shadow-md transition-all border border-slate-100 overflow-hidden group">
+              <Card key={member.id} className="border-none shadow-sm bg-white rounded-2xl hover:shadow-md transition-all border border-border overflow-hidden group">
                 <CardContent className="p-6 sm:p-8 flex flex-col items-center text-center">
-                  <Avatar className="h-20 w-20 mb-4 border-4 border-slate-50 shadow-xl group-hover:scale-105 transition-transform">
+                  <Avatar className="h-20 w-20 mb-4 border-4 border-border shadow-xl group-hover:scale-105 transition-transform">
                     <AvatarImage src={member.avatar_url} />
                     <AvatarFallback className="bg-slate-100 text-slate-400 font-black text-xl">
                       {getInitials(member.full_name)}
@@ -1390,7 +1402,7 @@ export default function Settings() {
                     <div className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-50 text-slate-600 text-[10px] font-black uppercase">
                       <Mail className="h-3 w-3" /> {member.email}
                     </div>
-                    <div className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-50 text-[#1a355b] text-[10px] font-black uppercase">
+                    <div className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-50 text-primary text-[10px] font-black uppercase">
                       <Shield className="h-3 w-3" /> {member.role === 'ADMIN' ? 'Admin' : 'Usuário'}
                     </div>
                   </div>
@@ -1404,7 +1416,7 @@ export default function Settings() {
         <TabsContent value="personalização" className="space-y-8 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
             <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
                 <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
@@ -1448,7 +1460,7 @@ export default function Settings() {
                         placeholder="https://..."
                       />
                       {customization.logo_url && (
-                        <div className="h-12 w-full sm:w-24 shrink-0 rounded-xl border border-slate-100 bg-white p-2 flex items-center justify-center shadow-sm">
+                        <div className="h-12 w-full sm:w-24 shrink-0 rounded-xl border border-border bg-white p-2 flex items-center justify-center shadow-sm">
                           <img src={customization.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                         </div>
                       )}
@@ -1472,10 +1484,10 @@ export default function Settings() {
                 </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100">
+              <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border">
                 <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b]">
+                    <div className="p-2.5 rounded-xl bg-blue-50 text-primary">
                       <TextQuote className="h-5 w-5" />
                     </div>
                     <div>
@@ -1510,10 +1522,10 @@ export default function Settings() {
                         value={customization.sidebar_font_weight}
                         onValueChange={v => setCustomization({...customization, sidebar_font_weight: v})}
                       >
-                        <SelectTrigger className="h-12 bg-slate-100 border-none rounded-xl font-bold focus:ring-primary/10">
+                        <SelectTrigger className="h-12 bg-white border-none rounded-xl font-bold focus:ring-primary/10">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="rounded-xl shadow-2xl border-slate-100">
+                        <SelectContent className="rounded-xl shadow-2xl border-border">
                           <SelectItem value="light" className="font-bold text-xs py-3">Leve</SelectItem>
                           <SelectItem value="normal" className="font-bold text-xs py-3">Normal</SelectItem>
                           <SelectItem value="medium" className="font-bold text-xs py-3">Médio</SelectItem>
@@ -1534,7 +1546,7 @@ export default function Settings() {
             </div>
           </div>
 
-          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-slate-100 mt-6 sm:mt-8">
+          <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden border border-border mt-6 sm:mt-8">
             <CardHeader className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
@@ -1584,10 +1596,10 @@ export default function Settings() {
                     value={sidebarAdvanced.border_radius}
                     onValueChange={v => updateSidebarAdvanced('sidebar_border_radius', v)}
                   >
-                    <SelectTrigger className="h-12 bg-slate-100 border-none rounded-xl font-bold focus:ring-primary/10">
+                    <SelectTrigger className="h-12 bg-white border-none rounded-xl font-bold focus:ring-primary/10">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl shadow-2xl border-slate-100">
+                    <SelectContent className="rounded-xl shadow-2xl border-border">
                       <SelectItem value="none" className="font-bold text-xs py-3">Nenhum</SelectItem>
                       <SelectItem value="md" className="font-bold text-xs py-3">Médio</SelectItem>
                       <SelectItem value="lg" className="font-bold text-xs py-3">Grande</SelectItem>
@@ -1596,7 +1608,7 @@ export default function Settings() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-border">
                   <div className="space-y-0.5">
                     <Label className="text-sm font-bold text-slate-700">Exibir Logo/Marca</Label>
                     <p className="text-[10px] text-slate-500 font-medium">Mostrar seção superior do menu</p>
@@ -1613,14 +1625,14 @@ export default function Settings() {
           <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 pb-10">
             <Button 
               variant="outline"
-              className="h-12 px-8 rounded-xl border-slate-200 text-slate-500 font-bold hover:bg-slate-50" 
+              className="h-12 px-8 rounded-xl border-border text-slate-500 font-bold hover:bg-slate-50" 
               onClick={handleDiscardCustomization}
               disabled={saving}
             >
               Descartar
             </Button>
             <Button 
-              className="h-12 px-10 rounded-xl bg-[#1a355b] hover:bg-[#10213d] text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]" 
+              className="h-12 px-10 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]" 
               onClick={handleSaveCustomization}
               disabled={saving}
             >

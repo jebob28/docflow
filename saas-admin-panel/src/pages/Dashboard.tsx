@@ -49,7 +49,7 @@ export const StatCard = ({
           </div>
         </div>
         {Icon && (
-          <div className="w-12 h-12 bg-[#f4f7fe] rounded-2xl flex items-center justify-center text-[#1b254b] group-hover:bg-[#1b254b] group-hover:text-white transition-all duration-300 shadow-sm">
+          <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300 shadow-sm">
             <Icon size={24} />
           </div>
         )}
@@ -125,7 +125,7 @@ export default function Dashboard() {
       </div>
       
       <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
-        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-slate-50 flex flex-row items-center justify-between">
+        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-border flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
               <Activity size={16} className="text-blue-600" />
@@ -156,10 +156,10 @@ export default function Dashboard() {
                 </TableHeader>
                 <TableBody>
                   {logs.map((log) => (
-                    <TableRow key={log.id} className="hover:bg-slate-50/30 transition-colors border-b border-slate-50 last:border-0">
+                    <TableRow key={log.id} className="hover:bg-slate-50/30 transition-colors border-b border-border last:border-0">
                       <TableCell className="font-bold text-[11px] lg:text-xs text-slate-700 px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 lg:gap-3">
-                          <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-[#1b254b]/5 flex items-center justify-center text-[9px] lg:text-[10px] text-[#1b254b] font-bold shrink-0">
+                          <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-primary/5 flex items-center justify-center text-[9px] lg:text-[10px] text-primary font-bold shrink-0">
                             {log.tenant_name?.substring(0, 2).toUpperCase() || 'SI'}
                           </div>
                           <span className="truncate max-w-[80px] lg:max-w-none">{log.tenant_name || 'Sistema'}</span>

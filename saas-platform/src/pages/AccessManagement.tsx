@@ -197,7 +197,7 @@ export default function AccessManagement() {
         try {
           const err = await response.json();
           toast.error(err.message || 'Erro ao salvar setor');
-        } catch (e) {
+        } catch {
           const text = await response.text();
           toast.error(text || 'Erro ao salvar setor');
         }
@@ -240,7 +240,7 @@ export default function AccessManagement() {
         try {
           const err = await response.json();
           toast.error(err.message || 'Erro ao salvar usuário');
-        } catch (e) {
+        } catch {
           // Se não for JSON, tenta ler como texto
           const text = await response.text();
           toast.error(text || 'Erro ao salvar usuário');
@@ -348,7 +348,7 @@ export default function AccessManagement() {
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b] shadow-sm">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-primary shadow-sm">
               <Users className="h-5 w-5" />
             </div>
             <div>
@@ -360,7 +360,7 @@ export default function AccessManagement() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-slate-100"
+              className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100"
               onClick={() => {
                 setEditingUser(user);
                 setUserForm({
@@ -414,7 +414,7 @@ export default function AccessManagement() {
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-1 border-t border-slate-50 pt-3">
+          <div className="flex flex-wrap gap-1 border-t border-border pt-3">
             {user.sectors && user.sectors.length > 0 ? (
               user.sectors.map((us) => (
                 <span 
@@ -422,7 +422,7 @@ export default function AccessManagement() {
                   className={cn(
                     "text-[10px] font-semibold px-2 py-0.5 rounded-full",
                     us.permission_type === 'GESTOR' 
-                      ? "bg-blue-100 text-[#1a355b]" 
+                      ? "bg-blue-100 text-primary" 
                       : "bg-slate-100 text-slate-600"
                   )}
                 >
@@ -445,7 +445,7 @@ export default function AccessManagement() {
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-[#1a355b] shadow-sm">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-primary shadow-sm">
               <Building2 className="h-5 w-5" />
             </div>
             <div>
@@ -460,7 +460,7 @@ export default function AccessManagement() {
               variant="ghost" 
               size="icon" 
               disabled={!canManageSectors}
-              className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-slate-100"
+              className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100"
               onClick={() => {
                 setEditingSector(sector);
                 setSectorForm({ name: sector.name, description: sector.description });
@@ -504,7 +504,7 @@ export default function AccessManagement() {
             onClick={() => setActiveTab('users')}
             className={cn(
               "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-              activeTab === 'users' ? "bg-white text-[#1a355b] shadow-sm" : "text-slate-500 hover:text-slate-700"
+              activeTab === 'users' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
             <Users className="h-4 w-4" />
@@ -514,7 +514,7 @@ export default function AccessManagement() {
             onClick={() => setActiveTab('sectors')}
             className={cn(
               "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-              activeTab === 'sectors' ? "bg-white text-[#1a355b] shadow-sm" : "text-slate-500 hover:text-slate-700"
+              activeTab === 'sectors' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
             <Building2 className="h-4 w-4" />
@@ -527,7 +527,7 @@ export default function AccessManagement() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden group hover:shadow-md transition-all">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-50 text-[#1a355b] group-hover:bg-[#1a355b] group-hover:text-white transition-all">
+            <div className="p-3 rounded-xl bg-blue-50 text-primary group-hover:bg-primary group-hover:text-white transition-all">
               <Users className="h-6 w-6" />
             </div>
             <div>
@@ -539,7 +539,7 @@ export default function AccessManagement() {
         
         <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden group hover:shadow-md transition-all">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-50 text-[#1a355b] group-hover:bg-[#1a355b] group-hover:text-white transition-all">
+            <div className="p-3 rounded-xl bg-blue-50 text-primary group-hover:bg-primary group-hover:text-white transition-all">
               <Building2 className="h-6 w-6" />
             </div>
             <div>
@@ -551,7 +551,7 @@ export default function AccessManagement() {
 
         <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden group hover:shadow-md transition-all">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-50 text-[#1a355b] group-hover:bg-[#1a355b] group-hover:text-white transition-all">
+            <div className="p-3 rounded-xl bg-blue-50 text-primary group-hover:bg-primary group-hover:text-white transition-all">
               <Shield className="h-6 w-6" />
             </div>
             <div>
@@ -564,9 +564,9 @@ export default function AccessManagement() {
 
       {/* Search and Action */}
       <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-6 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="relative w-full sm:w-80 group">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
             <Input 
               placeholder={activeTab === 'users' ? "Pesquisar usuários..." : "Pesquisar setores..."} 
               className="pl-10 h-10 bg-slate-50 border-none rounded-xl text-sm"
@@ -588,7 +588,7 @@ export default function AccessManagement() {
                 setIsSectorModalOpen(true);
               }
             }}
-            className="bg-[#1a355b] hover:bg-[#10213d] text-white font-bold px-6 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/10"
+            className="bg-primary hover:bg-primary/90 text-white font-bold px-6 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-900/10"
           >
             {activeTab === 'users' ? <UserPlus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {activeTab === 'users' ? 'Novo Usuário' : 'Novo Setor'}
@@ -617,7 +617,7 @@ export default function AccessManagement() {
                   </TableHeader>
                   <TableBody>
                     {filteredUsers.map((user) => (
-                      <TableRow key={user.id} className="border-slate-50 hover:bg-slate-50/50 group transition-all">
+                      <TableRow key={user.id} className="border-border hover:bg-slate-50/50 group transition-all">
                         <TableCell className="py-4 pl-6">
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900 text-sm">{user.full_name}</span>
@@ -633,7 +633,7 @@ export default function AccessManagement() {
                                   className={cn(
                                     "text-[10px] font-semibold px-2 py-0.5 rounded-full",
                                     us.permission_type === 'GESTOR' 
-                                      ? "bg-blue-100 text-[#1a355b]" 
+                                      ? "bg-blue-100 text-primary" 
                                       : "bg-slate-100 text-slate-600"
                                   )}
                                   title={us.permission_type}
@@ -673,7 +673,7 @@ export default function AccessManagement() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-slate-100"
+                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100"
                               onClick={() => {
                                 setEditingUser(user);
                                 setUserForm({
@@ -694,7 +694,7 @@ export default function AccessManagement() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-slate-100"
+                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100"
                               onClick={() => {
                                 setEditingUser(user);
                                 setIsPasswordModalOpen(true);
@@ -728,7 +728,7 @@ export default function AccessManagement() {
                     <UserCard key={user.id} user={user} />
                   ))
                 ) : (
-                  <div className="p-12 text-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                  <div className="p-12 text-center bg-slate-50 rounded-xl border-2 border-dashed border-border">
                     <Users className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                     <p className="text-slate-500 font-medium">Nenhum usuário encontrado</p>
                   </div>
@@ -750,10 +750,10 @@ export default function AccessManagement() {
                   </TableHeader>
                   <TableBody>
                     {filteredSectors.map((sector) => (
-                      <TableRow key={sector.id} className="border-slate-50 hover:bg-slate-50/50 group transition-all">
+                      <TableRow key={sector.id} className="border-border hover:bg-slate-50/50 group transition-all">
                         <TableCell className="py-4 pl-6">
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-blue-50 text-[#1a355b]">
+                            <div className="p-2 rounded-lg bg-blue-50 text-primary">
                               <Building2 className="h-4 w-4" />
                             </div>
                             <span className="font-bold text-slate-900 text-sm">{sector.name}</span>
@@ -770,7 +770,7 @@ export default function AccessManagement() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-[#1a355b] hover:bg-slate-100"
+                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100"
                               onClick={() => {
                                 setEditingSector(sector);
                                 setSectorForm({ name: sector.name, description: sector.description });
@@ -805,7 +805,7 @@ export default function AccessManagement() {
                     <SectorCard key={sector.id} sector={sector} />
                   ))
                 ) : (
-                  <div className="p-12 text-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                  <div className="p-12 text-center bg-slate-50 rounded-xl border-2 border-dashed border-border">
                     <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                     <p className="text-slate-500 font-medium">Nenhum setor encontrado</p>
                   </div>
@@ -838,11 +838,11 @@ export default function AccessManagement() {
           )}
         >
           <SheetHeader className={cn(
-            "px-8 pt-10 pb-6 border-b border-slate-50 shrink-0 relative",
+            "px-8 pt-10 pb-6 border-b border-border shrink-0 relative",
             isDesktop && "pt-12 pb-8"
           )}>
             <div className="flex items-center gap-5 relative z-10">
-              <div className="p-4 rounded-2xl bg-blue-50 text-[#1a355b] shadow-sm border border-blue-100/50">
+              <div className="p-4 rounded-2xl bg-blue-50 text-primary shadow-sm border border-blue-100/50">
                 <UserPlus className="h-7 w-7" />
               </div>
               <div>
@@ -868,10 +868,10 @@ export default function AccessManagement() {
                 <div className="space-y-3">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
                   <div className="relative group">
-                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                     <Input 
                       placeholder="Ex: João Silva" 
-                      className="h-14 pl-12 bg-slate-50/50 border-slate-200 rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-[#1a355b] transition-all group-hover:bg-white shadow-sm"
+                      className="h-14 pl-12 bg-slate-50/50 border-border rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-primary transition-all group-hover:bg-white shadow-sm"
                       value={userForm.full_name}
                       onChange={e => setUserForm(prev => ({ ...prev, full_name: e.target.value }))}
                       required
@@ -882,11 +882,11 @@ export default function AccessManagement() {
                 <div className="space-y-3">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail Corporativo</label>
                   <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                     <Input 
                       type="email"
                       placeholder="email@empresa.com" 
-                      className="h-14 pl-12 bg-slate-50/50 border-slate-200 rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-[#1a355b] transition-all group-hover:bg-white shadow-sm"
+                      className="h-14 pl-12 bg-slate-50/50 border-border rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-primary transition-all group-hover:bg-white shadow-sm"
                       value={userForm.email}
                       onChange={e => setUserForm(prev => ({ ...prev, email: e.target.value }))}
                       required
@@ -898,11 +898,11 @@ export default function AccessManagement() {
                   <div className="space-y-3">
                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha Inicial</label>
                     <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                       <Input 
                         type="password"
                         placeholder="••••••••" 
-                        className="h-14 pl-12 bg-slate-50/50 border-slate-200 rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-[#1a355b] transition-all group-hover:bg-white shadow-sm"
+                        className="h-14 pl-12 bg-slate-50/50 border-border rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-primary transition-all group-hover:bg-white shadow-sm"
                         value={userForm.password}
                         onChange={e => setUserForm(prev => ({ ...prev, password: e.target.value }))}
                         required={!editingUser}
@@ -918,20 +918,20 @@ export default function AccessManagement() {
                       value={userForm.role_name} 
                       onValueChange={val => setUserForm(prev => ({ ...prev, role_name: val }))}
                     >
-                      <SelectTrigger className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all hover:bg-white shadow-sm">
+                      <SelectTrigger className="h-14 bg-white border-none rounded-2xl font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all hover:bg-white shadow-sm">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-none shadow-2xl p-1 bg-white" position="popper" sideOffset={8}>
-                        <SelectItem value="MASTER" className="font-bold rounded-xl focus:bg-slate-50 focus:text-[#1a355b] py-3">Master</SelectItem>
-                        <SelectItem value="GESTOR" className="font-bold rounded-xl focus:bg-slate-50 focus:text-[#1a355b] py-3">Gestor</SelectItem>
-                        <SelectItem value="USER" className="font-bold rounded-xl focus:bg-slate-50 focus:text-[#1a355b] py-3">Usuário</SelectItem>
+                        <SelectItem value="MASTER" className="font-bold rounded-xl focus:bg-slate-50 focus:text-primary py-3">Master</SelectItem>
+                        <SelectItem value="GESTOR" className="font-bold rounded-xl focus:bg-slate-50 focus:text-primary py-3">Gestor</SelectItem>
+                        <SelectItem value="USER" className="font-bold rounded-xl focus:bg-slate-50 focus:text-primary py-3">Usuário</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-3">
                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Setores e Permissões</label>
-                    <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto p-3 rounded-2xl bg-slate-50/50 border border-slate-200 shadow-inner">
+                    <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto p-3 rounded-2xl bg-slate-50/50 border border-border shadow-inner">
                       {sectors.length === 0 && (
                         <p className="p-6 text-center text-xs text-slate-400 font-bold italic">Nenhum setor cadastrado</p>
                       )}
@@ -961,7 +961,7 @@ export default function AccessManagement() {
                                     }));
                                   }
                                 }}
-                                className="h-5 w-5 border-slate-300 data-[state=checked]:bg-[#1a355b] data-[state=checked]:border-[#1a355b] rounded-md"
+                                className="h-5 w-5 border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary rounded-md"
                               />
                               <label 
                                 htmlFor={`sector-${sector.id}`}
@@ -983,7 +983,7 @@ export default function AccessManagement() {
                                   }));
                                 }}
                               >
-                                <SelectTrigger className="h-9 w-32 bg-slate-50 border-none rounded-lg text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-blue-500/10">
+                                <SelectTrigger className="h-9 w-32 bg-white border-none rounded-lg text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-blue-500/10">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-none shadow-2xl p-1 bg-white" position="popper" sideOffset={4}>
@@ -1003,7 +1003,7 @@ export default function AccessManagement() {
           </div>
 
           <SheetFooter className={cn(
-            "px-8 py-6 border-t border-slate-50 bg-white shrink-0",
+            "px-8 py-6 border-t border-border bg-white shrink-0",
             isDesktop ? "pb-10" : "pb-8 mb-6"
           )}>
             <div className="flex flex-col w-full gap-4">
@@ -1011,7 +1011,7 @@ export default function AccessManagement() {
                 type="submit" 
                 form="user-form"
                 disabled={isSubmitting}
-                className="w-full h-14 rounded-2xl bg-[#1a355b] hover:bg-[#10213d] text-white font-black text-lg shadow-xl shadow-blue-900/10 transition-all active:scale-[0.97] flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl shadow-blue-900/10 transition-all active:scale-[0.97] flex items-center justify-center gap-3"
               >
                 {isSubmitting ? (
                   <>
@@ -1051,9 +1051,9 @@ export default function AccessManagement() {
       {/* Modal Alterar Senha */}
       <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white">
-          <div className="p-8 border-b border-slate-100/80 text-center">
+          <div className="p-8 border-b border-border/80 text-center">
             <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
-              <Lock className="h-8 w-8 text-[#1a355b]" />
+              <Lock className="h-8 w-8 text-primary" />
             </div>
             <DialogTitle className="text-xl font-bold text-slate-900">Alterar Senha</DialogTitle>
             <DialogDescription className="text-slate-500 text-sm font-medium mt-1">
@@ -1073,7 +1073,7 @@ export default function AccessManagement() {
             <Button 
               type="submit"
               disabled={isSubmitting || newPassword.length < 6}
-              className="w-full h-12 rounded-xl bg-[#1a355b] text-white font-bold"
+              className="w-full h-12 rounded-xl bg-primary text-white font-bold"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirmar Alteração'}
             </Button>
@@ -1097,11 +1097,11 @@ export default function AccessManagement() {
           )}
         >
           <SheetHeader className={cn(
-            "px-8 pt-10 pb-6 border-b border-slate-50 shrink-0 relative",
+            "px-8 pt-10 pb-6 border-b border-border shrink-0 relative",
             isDesktop && "pt-12 pb-8"
           )}>
             <div className="flex items-center gap-5 relative z-10">
-              <div className="p-4 rounded-2xl bg-blue-50 text-[#1a355b] shadow-sm border border-blue-100/50">
+              <div className="p-4 rounded-2xl bg-blue-50 text-primary shadow-sm border border-blue-100/50">
                 <Building2 className="h-7 w-7" />
               </div>
               <div>
@@ -1127,10 +1127,10 @@ export default function AccessManagement() {
                 <div className="space-y-3">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Setor</label>
                   <div className="relative group">
-                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
+                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                     <Input 
-                      placeholder="Ex: Recursos Humanos" 
-                      className="h-14 pl-12 bg-slate-50/50 border-slate-200 rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-[#1a355b] transition-all group-hover:bg-white shadow-sm"
+                      placeholder="Ex: Departamento Jurídico" 
+                      className="h-14 pl-12 bg-slate-50/50 border-border rounded-2xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-primary transition-all group-hover:bg-white shadow-sm"
                       value={sectorForm.name}
                       onChange={e => setSectorForm(prev => ({ ...prev, name: e.target.value }))}
                       required
@@ -1142,7 +1142,7 @@ export default function AccessManagement() {
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Descrição</label>
                   <textarea 
                     placeholder="Descreva as responsabilidades deste setor (opcional)"
-                    className="w-full min-h-[160px] p-4 bg-slate-50/50 border border-slate-200 rounded-2xl font-bold text-base md:text-sm resize-none text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all group-hover:bg-white shadow-sm"
+                    className="w-full min-h-[160px] p-4 bg-slate-50/50 border border-border rounded-2xl font-bold text-base md:text-sm resize-none text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all group-hover:bg-white shadow-sm"
                     value={sectorForm.description}
                     onChange={e => setSectorForm(prev => ({ ...prev, description: e.target.value }))}
                   />
@@ -1152,7 +1152,7 @@ export default function AccessManagement() {
           </div>
 
           <SheetFooter className={cn(
-            "px-8 py-6 border-t border-slate-50 bg-white shrink-0",
+            "px-8 py-6 border-t border-border bg-white shrink-0",
             isDesktop ? "pb-10" : "pb-8 mb-6"
           )}>
             <div className="flex flex-col w-full gap-4">
@@ -1160,7 +1160,7 @@ export default function AccessManagement() {
                 type="submit" 
                 form="sector-form"
                 disabled={isSubmitting}
-                className="w-full h-14 rounded-2xl bg-[#1a355b] hover:bg-[#10213d] text-white font-black text-lg shadow-xl shadow-blue-900/10 transition-all active:scale-[0.97] flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl shadow-blue-900/10 transition-all active:scale-[0.97] flex items-center justify-center gap-3"
               >
                 {isSubmitting ? (
                   <>
@@ -1200,7 +1200,7 @@ export default function AccessManagement() {
       {/* Modal Deletar */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="w-[95%] max-w-[400px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in zoom-in-95 duration-200">
-          <div className="p-8 border-b border-slate-100/80 text-center">
+          <div className="p-8 border-b border-border/80 text-center">
             <div className="w-20 h-20 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="h-10 w-10 text-rose-500" />
             </div>

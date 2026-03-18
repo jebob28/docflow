@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,14 +16,11 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const loginSchema = z.object({
   email: z.string().email({ message: "E-mail inválido" }),
   password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres" }),
-  totp_code: z.preprocess(
-    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-    z.string().regex(/^\d{6}$/, { message: "Código MFA inválido" }).optional()
-  ),
 });
 
 const changePasswordSchema = z.object({
@@ -45,14 +42,16 @@ export default function Login() {
   const [isFirstLogin, setIsFirstLogin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaModalOpen, setMfaModalOpen] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [pendingLogin, setPendingLogin] = useState<{ email: string; password: string } | null>(null);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema) as Resolver<LoginFormValues>,
     defaultValues: {
       email: "",
       password: "",
-      totp_code: "",
     },
   });
 
@@ -65,22 +64,31 @@ export default function Login() {
     },
   });
 
-  async function onLoginSubmit(values: LoginFormValues) {
+  const parseLoginMessage = (text: string) => {
+    try {
+      const json = JSON.parse(text);
+      return json.message || text;
+    } catch {
+      return text || "Credenciais inválidas. Tente novamente.";
+    }
+  };
+
+  const isMfaMessage = (message: string) => {
+    const normalized = message.toLowerCase();
+    return normalized.includes("mfa") || normalized.includes("2fa");
+  };
+
+  const performLogin = async (email: string, password: string, totpCode?: string) => {
     setLoading(true);
     setError(null);
     try {
-      if (mfaRequired && !values.totp_code) {
-        setError("Informe o código MFA para continuar.");
-        setLoading(false);
-        return;
-      }
       const response = await fetch('/api/v1/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-          totp_code: values.totp_code,
+          email,
+          password,
+          totp_code: totpCode,
         }),
       });
 
@@ -90,27 +98,27 @@ export default function Login() {
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
-        
-        // Em um sistema real, poderíamos checar se é primeiro login pelo backend
-        // Para manter a lógica visual de reset de senha se a senha for "123456"
-        setMfaRequired(false);
-        if (values.password === "123456") {
+        setMfaModalOpen(false);
+        setMfaCode('');
+        setMfaError(null);
+        setPendingLogin(null);
+        if (password === "123456") {
           setIsFirstLogin(true);
         } else {
           navigate('/documents');
         }
       } else {
         const text = await response.text();
-        const message = (() => {
-          try {
-            const json = JSON.parse(text);
-            return json.message || text;
-          } catch {
-            return text || "Credenciais inválidas. Tente novamente.";
+        const message = parseLoginMessage(text);
+        if (isMfaMessage(message)) {
+          setPendingLogin({ email, password });
+          setMfaModalOpen(true);
+          if (totpCode) {
+            setMfaError(message || "Código MFA inválido.");
+          } else {
+            setMfaError(null);
           }
-        })();
-        if (message.toLowerCase().includes("mfa") || message.toLowerCase().includes("2fa")) {
-          setMfaRequired(true);
+          return;
         }
         setError(message);
       }
@@ -119,7 +127,25 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  async function onLoginSubmit(values: LoginFormValues) {
+    await performLogin(values.email, values.password);
   }
+
+  const handleMfaSubmit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!mfaCode.trim()) {
+      setMfaError("Informe o código MFA para continuar.");
+      return;
+    }
+    if (!pendingLogin) {
+      setMfaModalOpen(false);
+      return;
+    }
+    setMfaError(null);
+    await performLogin(pendingLogin.email, pendingLogin.password, mfaCode.trim());
+  };
 
   async function onChangePasswordSubmit(values: ChangePasswordFormValues) {
     setLoading(true);
@@ -156,7 +182,7 @@ export default function Login() {
       <Card className="w-full max-w-[1000px] overflow-hidden border-none shadow-2xl bg-white rounded-3xl md:rounded-[40px]">
         <CardContent className="p-0 flex flex-col md:flex-row min-h-[500px] md:min-h-[600px]">
           {/* Lado Esquerdo - Branding */}
-          <div className="md:w-[40%] bg-[#1a355b] p-8 md:p-12 flex flex-col justify-center text-white relative overflow-hidden min-h-[200px] md:min-h-full">
+          <div className="md:w-[40%] bg-primary p-8 md:p-12 flex flex-col justify-center text-white relative overflow-hidden min-h-[200px] md:min-h-full">
             <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
               <div className="absolute top-[-10%] right-[-10%] w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-white rounded-full blur-[100px]" />
               <div className="absolute bottom-[-10%] left-[-10%] w-[150px] md:w-[200px] h-[150px] md:h-[200px] bg-blue-400 rounded-full blur-[80px]" />
@@ -211,7 +237,7 @@ export default function Login() {
                               <Input 
                                 placeholder="exemplo@docflow.com.br" 
                                 {...field} 
-                                className="pl-10 h-12 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                                className="pl-10 h-12 bg-slate-50 border-border focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
                               />
                             </div>
                           </FormControl>
@@ -250,7 +276,7 @@ export default function Login() {
                                 {...field}
                                 type={showPassword ? "text" : "password"}
                                 placeholder="Sua senha" 
-                                className="pl-10 pr-10 h-12 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                                className="pl-10 pr-10 h-12 bg-slate-50 border-border focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
                               />
                               <button
                                 type="button"
@@ -265,32 +291,9 @@ export default function Login() {
                         </FormItem>
                       )}
                     />
-                    {mfaRequired && (
-                      <FormField
-                        control={loginForm.control}
-                        name="totp_code"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">Código MFA</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Input
-                                  placeholder="000000"
-                                  className="h-12 rounded-xl bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all pl-11"
-                                  {...field}
-                                />
-                                <LockIcon className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
                     <Button 
                       type="submit" 
-                      className="w-full h-12 bg-[#1a355b] hover:bg-[#1a355b]/90 text-white font-bold rounded-xl transition-all active:scale-[0.98]"
+                      className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all active:scale-[0.98]"
                       disabled={loading}
                     >
                       {loading ? <Loader2 className="animate-spin" /> : "Entrar"}
@@ -298,7 +301,7 @@ export default function Login() {
 
                     <div className="relative py-4">
                       <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-slate-100" />
+                        <span className="w-full border-t border-border" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
                         <span className="bg-white px-4 text-slate-400 font-semibold">Ou entrar com</span>
@@ -309,7 +312,7 @@ export default function Login() {
                       <Button 
                         type="button"
                         variant="outline" 
-                        className="h-12 border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
+                        className="h-12 border-border rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
                         onClick={() => toast.info('Login via Google indisponível no momento.')}
                       >
                         <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
@@ -323,7 +326,7 @@ export default function Login() {
                       <Button 
                         type="button"
                         variant="outline" 
-                        className="h-12 border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
+                        className="h-12 border-border rounded-xl font-semibold text-slate-700 hover:bg-slate-50"
                         onClick={() => toast.info('Login via Facebook indisponível no momento.')}
                       >
                         <svg className="mr-2 h-5 w-5 fill-[#1877F2]" viewBox="0 0 24 24">
@@ -369,7 +372,7 @@ export default function Login() {
                                   placeholder="Digite sua nova senha" 
                                   autoComplete="new-password"
                                   value={field.value || ""}
-                                  className="pl-10 pr-10 h-12 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                                  className="pl-10 pr-10 h-12 bg-slate-50 border-border focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
                                   autoFocus
                                 />
                               </FormControl>
@@ -400,7 +403,7 @@ export default function Login() {
                                   type={showConfirmPassword ? "text" : "password"}
                                   placeholder="Confirme sua nova senha" 
                                   value={field.value || ""}
-                                  className="pl-10 pr-10 h-12 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                                  className="pl-10 pr-10 h-12 bg-slate-50 border-border focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
                                 />
                               </FormControl>
                               <button
@@ -418,7 +421,7 @@ export default function Login() {
 
                     <Button 
                       type="submit" 
-                      className="w-full h-12 bg-[#1a355b] hover:bg-[#1a355b]/90 text-white font-bold rounded-xl transition-all active:scale-[0.98]"
+                      className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all active:scale-[0.98]"
                       disabled={loading}
                     >
                       {loading ? <Loader2 className="animate-spin" /> : "Salvar e Continuar"}
@@ -439,6 +442,64 @@ export default function Login() {
           </div>
         </CardContent>
       </Card>
+      <Dialog
+        open={mfaModalOpen}
+        onOpenChange={(open) => {
+          setMfaModalOpen(open);
+          if (!open) {
+            setMfaCode('');
+            setMfaError(null);
+            setPendingLogin(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[420px] rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-3 text-center">
+            <DialogTitle className="text-xl font-black text-slate-900">Confirmação MFA</DialogTitle>
+            <DialogDescription className="text-slate-500 text-sm font-medium">
+              Digite o código do seu app autenticador para continuar.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleMfaSubmit} className="px-6 pb-6 space-y-4">
+            {mfaError && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl border border-red-100 text-xs font-medium">
+                {mfaError}
+              </div>
+            )}
+            <div className="space-y-2">
+              <FormLabel className="text-slate-700 font-semibold">Código MFA</FormLabel>
+              <div className="relative">
+                <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <Input
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value)}
+                  placeholder="000000"
+                  className="pl-10 h-12 bg-slate-50 border-border focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex gap-3 sm:flex-row sm:justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 rounded-xl font-bold text-xs"
+                onClick={() => setMfaModalOpen(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="h-11 rounded-xl bg-primary text-white font-bold text-xs"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

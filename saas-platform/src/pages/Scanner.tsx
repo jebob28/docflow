@@ -647,7 +647,7 @@ export default function Scanner() {
                 <path
                   d={`M ${cropPoints[0].x}% ${cropPoints[0].y}% L ${cropPoints[1].x}% ${cropPoints[1].y}% L ${cropPoints[2].x}% ${cropPoints[2].y}% L ${cropPoints[3].x}% ${cropPoints[3].y}% Z`}
                   fill="rgba(59, 130, 246, 0.2)"
-                  stroke="#3b82f6"
+                  stroke="var(--color-primary)"
                   strokeWidth="2"
                   strokeDasharray="4"
                 />
@@ -660,7 +660,7 @@ export default function Scanner() {
                     cy={`${point.y}%`}
                     r="15"
                     fill="white"
-                    stroke="#3b82f6"
+                    stroke="var(--color-primary)"
                     strokeWidth="3"
                     className="cursor-pointer active:scale-110 transition-transform shadow-xl"
                     onTouchStart={(e) => {
@@ -779,10 +779,10 @@ export default function Scanner() {
                       fetchFolders(val);
                     }}
                   >
-                    <SelectTrigger className="h-14 bg-slate-50 border-slate-100 rounded-2xl focus:ring-blue-500 text-slate-900">
+                    <SelectTrigger className="h-14 bg-white border-none rounded-2xl focus:ring-blue-500 text-slate-900">
                       <SelectValue placeholder={isLoadingSectors ? "Carregando..." : "Selecione o setor"} />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-slate-100 rounded-2xl shadow-xl z-[10001]">
+                    <SelectContent className="bg-white border-border rounded-2xl shadow-xl z-[10001]">
                       {Array.isArray(sectors) && sectors.length > 0 ? (
                         sectors.map((sector) => (
                           <SelectItem key={sector.id} value={sector.id} className="h-12 focus:bg-blue-50">
@@ -806,10 +806,10 @@ export default function Scanner() {
                     onValueChange={setSelectedFolderId}
                     disabled={!selectedSectorId}
                   >
-                    <SelectTrigger className="h-14 bg-slate-50 border-slate-100 rounded-2xl focus:ring-blue-500 text-slate-900">
+                    <SelectTrigger className="h-14 bg-white border-none rounded-2xl focus:ring-blue-500 text-slate-900">
                       <SelectValue placeholder={!selectedSectorId ? "Selecione um setor primeiro" : "Selecione a pasta (opcional)"} />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-slate-100 rounded-2xl shadow-xl z-[10001]">
+                    <SelectContent className="bg-white border-border rounded-2xl shadow-xl z-[10001]">
                       <SelectItem value="none" className="h-12 focus:bg-blue-50">Nenhuma (Raiz do Setor)</SelectItem>
                       {Array.isArray(folders) && folders.length > 0 ? (
                         folders.map((folder) => (

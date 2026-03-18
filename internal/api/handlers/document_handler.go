@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -275,23 +276,23 @@ func (h *DocumentHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	// 4.1 Validação de Segurança: Detectar Content-Type real (Magic Bytes)
 	// Isso evita que um atacante envie um .exe renomeado para .pdf
 	detectedType := http.DetectContentType(fileBytes)
-	
+
 	// Lista de tipos permitidos (ajuste conforme necessário)
 	allowedTypes := map[string]bool{
-		"application/pdf":                               true,
-		"image/jpeg":                                    true,
-		"image/png":                                     true,
-		"image/gif":                                     true,
-		"image/webp":                                    true,
-		"application/msword":                            true, // .doc
-		"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true, // .docx
-		"application/vnd.ms-excel":                      true, // .xls
+		"application/pdf":    true,
+		"image/jpeg":         true,
+		"image/png":          true,
+		"image/gif":          true,
+		"image/webp":         true,
+		"application/msword": true, // .doc
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // .docx
+		"application/vnd.ms-excel": true, // .xls
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true, // .xlsx
-		"application/vnd.ms-powerpoint":                 true, // .ppt
+		"application/vnd.ms-powerpoint":                                             true, // .ppt
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation": true, // .pptx
-		"text/plain":                                    true,
-		"text/csv":                                      true,
-		"application/zip":                               true,
+		"text/plain":      true,
+		"text/csv":        true,
+		"application/zip": true,
 	}
 
 	if !allowedTypes[detectedType] {
@@ -709,21 +710,21 @@ func (h *DocumentHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 
 		docs = append(docs, map[string]any{
-			"id":              id,
-			"name":            name,
-			"extension":       ext,
-			"size":            size,
-			"content_type":    contentType,
-			"type":            "file",
-			"created_at":      createdAt,
-			"owner":           owner,
-			"sector_name":     sectorName,
-			"sector_id":       sectorID,
-			"tags":            tags,
-			"can_edit":        canEdit,
-			"current_version": currentVersion,
-			"status":          status,
-			"document_type":   documentTypeName,
+			"id":               id,
+			"name":             name,
+			"extension":        ext,
+			"size":             size,
+			"content_type":     contentType,
+			"type":             "file",
+			"created_at":       createdAt,
+			"owner":            owner,
+			"sector_name":      sectorName,
+			"sector_id":        sectorID,
+			"tags":             tags,
+			"can_edit":         canEdit,
+			"current_version":  currentVersion,
+			"status":           status,
+			"document_type":    documentTypeName,
 			"ocr_processed_at": ocrProcessedAt,
 		})
 	}
@@ -1369,7 +1370,7 @@ func (h *DocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.ToLower(contentType) == "application/pdf" && hasConfidentialTag && !isOriginal {
+	if strings.ToLower(contentType) == "application/pdf" && !isOriginal && (hasConfidentialTag || (watermarkText != "" && watermarkText != "CONFIDENCIAL")) {
 		// Garantir que o tamanho nunca seja zero para evitar erros
 		if watermarkSize <= 0 {
 			watermarkSize = 80
@@ -1387,8 +1388,8 @@ func (h *DocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[ERROR] Erro ao aplicar marca d'água no doc %s: %v", docID, err)
 		}
 	} else {
-		log.Printf("[DEBUG] Marca d'água NÃO aplicada no doc %s. PDF=%v, Confidencial=%v, Original=%v",
-			docID, strings.ToLower(contentType) == "application/pdf", hasConfidentialTag, isOriginal)
+		log.Printf("[DEBUG] Marca d'água NÃO aplicada no doc %s. PDF=%v, Confidencial=%v, Original=%v, WatermarkText='%s'",
+			docID, strings.ToLower(contentType) == "application/pdf", hasConfidentialTag, isOriginal, watermarkText)
 	}
 
 	// 5. Enviar arquivo para o navegador
@@ -1409,10 +1410,15 @@ func (h *DocumentHandler) applyWatermark(data []byte, text string, scale float64
 	model.ConfigPath = "disable"
 	conf.Offline = true
 
+	// Se a opacidade for muito baixa, forçamos um valor mínimo para ser visível
+	if opacity < 0.05 {
+		opacity = 0.20
+	}
+
 	// Usando scale (relativo à página) que é mais consistente para diferentes tamanhos de PDF
-	// Cor cinza claro (0.8 0.8 0.8) para uma marca d'água elegante
-	// Adicionado offset para controle da posição vertical (altura), rotação e opacidade parametrizável
-	wm, err := api.TextWatermark(text, fmt.Sprintf("fontname:Helvetica, rotation:%d, scale:%.2f, opacity:%.2f, color:0.8 0.8 0.8, offset:0 %d", rotation, scale, opacity, offsetY), true, false, types.POINTS)
+	// Cor preta (0.0 0.0 0.0) com opacidade controlada é mais garantido de aparecer do que cinza claro
+	// O parâmetro 'onTop:true' (terceiro argumento) garante que a marca d'água fique sobre o conteúdo
+	wm, err := api.TextWatermark(text, fmt.Sprintf("fontname:Helvetica, rotation:%d, scale:%.2f, opacity:%.2f, color:0 0 0, offset:0 %d", rotation, scale, opacity, offsetY), true, false, types.POINTS)
 	if err != nil {
 		return nil, err
 	}
@@ -1420,6 +1426,7 @@ func (h *DocumentHandler) applyWatermark(data []byte, text string, scale float64
 	// Aplicar em todas as páginas
 	reader := bytes.NewReader(data)
 	var out bytes.Buffer
+	// AddWatermarks(rs io.ReadSeeker, w io.Writer, selectedPages []string, wm *model.Watermark, conf *model.Configuration) error
 	err = api.AddWatermarks(reader, &out, nil, wm, conf)
 	if err != nil {
 		return nil, err
@@ -1592,11 +1599,11 @@ func (h *DocumentHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parâmetros de busca
-	query := r.URL.Query().Get("q")        // Nome do arquivo
-	tag := r.URL.Query().Get("tag")        // Tag específica
-	metaKey := r.URL.Query().Get("meta_k") // Chave de metadado
-	metaVal := r.URL.Query().Get("meta_v") // Valor de metadado
-	ocrQuery := r.URL.Query().Get("ocr")   // Texto reconhecido via OCR
+	query := r.URL.Query().Get("q")            // Nome do arquivo
+	tag := r.URL.Query().Get("tag")            // Tag específica
+	metaKey := r.URL.Query().Get("meta_k")     // Chave de metadado
+	metaVal := r.URL.Query().Get("meta_v")     // Valor de metadado
+	ocrQuery := r.URL.Query().Get("ocr")       // Texto reconhecido via OCR
 	folderID := r.URL.Query().Get("folder_id") // ID da pasta (opcional)
 
 	// Se houver busca OCR e OpenSearch estiver configurado
@@ -1756,16 +1763,16 @@ func (h *DocumentHandler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 
 		docs = append(docs, map[string]any{
-			"id":            id,
-			"name":          name,
-			"extension":     ext,
-			"size":          size,
-			"content_type":  contentType,
-			"created_at":    createdAt,
-			"sector_id":     sectorID,
-			"document_type": documentTypeName,
-			"can_edit":      canEdit,
-			"type":          "file",
+			"id":               id,
+			"name":             name,
+			"extension":        ext,
+			"size":             size,
+			"content_type":     contentType,
+			"created_at":       createdAt,
+			"sector_id":        sectorID,
+			"document_type":    documentTypeName,
+			"can_edit":         canEdit,
+			"type":             "file",
 			"ocr_processed_at": ocrProcessedAt,
 		})
 	}
@@ -1927,20 +1934,20 @@ func (h *DocumentHandler) UploadNewVersion(w http.ResponseWriter, r *http.Reques
 	// Detectar Content-Type real (Magic Bytes)
 	detectedType := http.DetectContentType(fileBytes)
 	allowedTypes := map[string]bool{
-		"application/pdf":                               true,
-		"image/jpeg":                                    true,
-		"image/png":                                     true,
-		"image/gif":                                     true,
-		"image/webp":                                    true,
-		"application/msword":                            true,
-		"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true,
-		"application/vnd.ms-excel":                      true,
+		"application/pdf":    true,
+		"image/jpeg":         true,
+		"image/png":          true,
+		"image/gif":          true,
+		"image/webp":         true,
+		"application/msword": true,
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+		"application/vnd.ms-excel": true,
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true,
-		"application/vnd.ms-powerpoint":                 true,
+		"application/vnd.ms-powerpoint":                                             true,
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation": true,
-		"text/plain":                                    true,
-		"text/csv":                                      true,
-		"application/zip":                               true,
+		"text/plain":      true,
+		"text/csv":        true,
+		"application/zip": true,
 	}
 
 	if !allowedTypes[detectedType] {
@@ -2080,8 +2087,8 @@ func (h *DocumentHandler) UpdateOCR(w http.ResponseWriter, r *http.Request) {
 	docID := chi.URLParam(r, "id")
 
 	var input struct {
-		OCRText           *string    `json:"ocr_text"`
-		ContractExpiresAt *time.Time `json:"contract_expires_at"`
+		OCRText           *string   `json:"ocr_text"`
+		ContractExpiresAt *JSONTime `json:"contract_expires_at"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -2150,6 +2157,7 @@ func (h *DocumentHandler) ListContractAlerts(w http.ResponseWriter, r *http.Requ
 	claims, _ := middleware.GetClaims(r.Context())
 
 	daysParam := r.URL.Query().Get("days")
+	sectorFilter := strings.TrimSpace(r.URL.Query().Get("sector_id"))
 	days := 0
 	if daysParam != "" {
 		if parsed, err := strconv.Atoi(daysParam); err == nil && parsed >= 0 {
@@ -2174,8 +2182,11 @@ func (h *DocumentHandler) ListContractAlerts(w http.ResponseWriter, r *http.Requ
 	}
 
 	sqlQuery := `
-		SELECT d.id, d.name, d.extension, d.size_bytes, d.content_type, d.contract_expires_at, d.sector_id, dtp.name as document_type_name
+		SELECT d.id, d.name, d.extension, d.size_bytes, d.content_type, d.contract_expires_at, d.sector_id, d.owner_id,
+		       c.id as contract_id, c.end_date, c.renewed_until,
+		       dtp.name as document_type_name
 		FROM documents d
+		LEFT JOIN contracts c ON c.document_id = d.id AND c.tenant_id = d.tenant_id
 		LEFT JOIN document_types dtp ON d.document_type_id = dtp.id
 		WHERE d.tenant_id = $1 AND d.deleted_at IS NULL AND d.contract_expires_at IS NOT NULL
 		  AND d.contract_expires_at <= $2
@@ -2197,6 +2208,16 @@ func (h *DocumentHandler) ListContractAlerts(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	if sectorFilter != "" {
+		if sectorFilter == "none" {
+			sqlQuery += " AND d.sector_id IS NULL"
+		} else {
+			sqlQuery += fmt.Sprintf(" AND d.sector_id = $%d", argID)
+			args = append(args, sectorFilter)
+			argID++
+		}
+	}
+
 	sqlQuery += " ORDER BY d.contract_expires_at ASC"
 
 	rows, err := h.db.Conn.Query(sqlQuery, args...)
@@ -2213,31 +2234,43 @@ func (h *DocumentHandler) ListContractAlerts(w http.ResponseWriter, r *http.Requ
 		var size int64
 		var expiresAt time.Time
 		var sectorID *uuid.UUID
+		var ownerID *int
+		var contractID *uuid.UUID
+		var contractEndDate *time.Time
+		var contractRenewedUntil *time.Time
 		var documentTypeName *string
-		if e := rows.Scan(&id, &name, &ext, &size, &contentType, &expiresAt, &sectorID, &documentTypeName); e != nil {
+		if e := rows.Scan(&id, &name, &ext, &size, &contentType, &expiresAt, &sectorID, &ownerID, &contractID, &contractEndDate, &contractRenewedUntil, &documentTypeName); e != nil {
 			log.Printf("Erro ao scanear alerta de contrato: %v", e)
 			continue
 		}
 
-		canEdit := claims.IsMaster
+		canEdit := claims.IsMaster || (ownerID != nil && *ownerID == claims.UserID)
 		if !canEdit && sectorID != nil {
 			if perm, ok := userPermissions[*sectorID]; ok && perm == "GESTOR" {
 				canEdit = true
 			}
 		}
 
+		expirationSource := "DOCUMENT"
+		if contractID != nil {
+			expirationSource = "CONTRACT"
+		}
+
 		alerts = append(alerts, map[string]any{
-			"id":                  id,
-			"name":                name,
-			"extension":           ext,
-			"size":                size,
-			"content_type":        contentType,
-			"contract_expires_at": expiresAt,
-			"is_expired":          expiresAt.Before(time.Now()),
-			"sector_id":           sectorID,
-			"can_edit":            canEdit,
-			"type":                "file",
-			"document_type":       documentTypeName,
+			"id":                     id,
+			"name":                   name,
+			"extension":              ext,
+			"size":                   size,
+			"content_type":           contentType,
+			"contract_expires_at":    expiresAt,
+			"contract_end_date":      contractEndDate,
+			"contract_renewed_until": contractRenewedUntil,
+			"expiration_source":      expirationSource,
+			"is_expired":             expiresAt.Before(time.Now()),
+			"sector_id":              sectorID,
+			"can_edit":               canEdit,
+			"type":                   "file",
+			"document_type":          documentTypeName,
 		})
 	}
 
@@ -3231,7 +3264,11 @@ func (h *DocumentHandler) CreateShareLink(w http.ResponseWriter, r *http.Request
 
 func (h *DocumentHandler) PublicView(w http.ResponseWriter, r *http.Request) {
 	accessToken := chi.URLParam(r, "token")
-	password := r.URL.Query().Get("p")
+	password := strings.TrimSpace(r.Header.Get("X-Share-Password"))
+	allowLegacyQueryPassword := strings.EqualFold(strings.TrimSpace(os.Getenv("ALLOW_PUBLIC_SHARE_QUERY_PASSWORD")), "true")
+	if password == "" && allowLegacyQueryPassword {
+		password = r.URL.Query().Get("p")
+	}
 	requestedDocID := r.URL.Query().Get("doc_id")
 
 	// 1. Validar Token e Expiração
@@ -3425,16 +3462,16 @@ func (h *DocumentHandler) PublicView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 9. Aplicar marca d'água se for PDF e confidencial
+	// 9. Aplicar marca d'água se for PDF e (confidencial ou configurada)
 	finalData := plaintext
-	if strings.ToLower(finalContentType) == "application/pdf" && hasConfidentialTag {
+	if strings.ToLower(finalContentType) == "application/pdf" && (hasConfidentialTag || (watermarkText != "" && watermarkText != "CONFIDENCIAL")) {
 		if watermarkSize <= 0 {
 			watermarkSize = 80
 		}
 		scale := float64(watermarkSize) / 100.0
 		opacity := float64(watermarkOpacity) / 100.0
 
-		log.Printf("[WATERMARK_PUBLIC] Aplicando marca d'água no link público para doc: %s", finalDocID)
+		log.Printf("[WATERMARK_PUBLIC] Aplicando marca d'água no link público para doc: %s. Text='%s'", finalDocID, watermarkText)
 
 		watermarkedData, errWM := h.applyWatermark(finalData, watermarkText, scale, watermarkOffsetY, watermarkRotation, opacity)
 		if errWM == nil {
@@ -3442,6 +3479,9 @@ func (h *DocumentHandler) PublicView(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("[ERROR] Erro ao aplicar marca d'água no link público: %v", errWM)
 		}
+	} else {
+		log.Printf("[DEBUG] Marca d'água NÃO aplicada no doc público %s. PDF=%v, Confidencial=%v, Text='%s'",
+			finalDocID, strings.ToLower(finalContentType) == "application/pdf", hasConfidentialTag, watermarkText)
 	}
 
 	w.Header().Set("Content-Type", finalContentType)
@@ -3574,6 +3614,88 @@ func (h *DocumentHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Documento excluído com sucesso"})
+}
+
+func (h *DocumentHandler) Move(w http.ResponseWriter, r *http.Request) {
+	tenantID, _ := middleware.GetTenantID(r.Context())
+	itemID := chi.URLParam(r, "id")
+
+	var req struct {
+		FolderID *string `json:"folder_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Requisição inválida")
+		return
+	}
+
+	// 1. Verificar se o item é um documento ou uma pasta
+	var isFolder bool
+	var itemSectorID *uuid.UUID
+
+	// Tentar buscar em documentos primeiro
+	err := h.db.Conn.QueryRow("SELECT sector_id FROM documents WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL", itemID, tenantID).Scan(&itemSectorID)
+	if err != nil {
+		// Se não achou em documentos, tentar em pastas
+		err = h.db.Conn.QueryRow("SELECT sector_id FROM folders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL", itemID, tenantID).Scan(&itemSectorID)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, "Item não encontrado")
+			return
+		}
+		isFolder = true
+	}
+
+	// 2. Validar permissão de escrita no item de origem
+	if !h.canWrite(r, itemSectorID) {
+		RespondWithError(w, http.StatusForbidden, "Sem permissão para mover este item")
+		return
+	}
+
+	// 3. Se houver uma pasta de destino, validar permissão nela também
+	var targetFolderID *uuid.UUID
+	if req.FolderID != nil && *req.FolderID != "" && *req.FolderID != "root" {
+		parsedID, err := uuid.Parse(*req.FolderID)
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, "ID da pasta de destino inválido")
+			return
+		}
+		targetFolderID = &parsedID
+
+		var targetSectorID *uuid.UUID
+		err = h.db.Conn.QueryRow("SELECT sector_id FROM folders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL", targetFolderID, tenantID).Scan(&targetSectorID)
+		if err != nil {
+			RespondWithError(w, http.StatusNotFound, "Pasta de destino não encontrada")
+			return
+		}
+
+		if !h.canWrite(r, targetSectorID) {
+			RespondWithError(w, http.StatusForbidden, "Sem permissão para mover para a pasta de destino")
+			return
+		}
+
+		// Evitar mover uma pasta para dentro de si mesma
+		if isFolder && itemID == targetFolderID.String() {
+			RespondWithError(w, http.StatusBadRequest, "Não é possível mover uma pasta para dentro de si mesma")
+			return
+		}
+	}
+
+	// 4. Executar a movimentação
+	var query string
+	if isFolder {
+		query = "UPDATE folders SET parent_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3"
+	} else {
+		query = "UPDATE documents SET folder_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3"
+	}
+
+	_, err = h.db.Conn.Exec(query, targetFolderID, itemID, tenantID)
+	if err != nil {
+		log.Printf("Erro ao mover item: %v", err)
+		RespondWithError(w, http.StatusInternalServerError, "Erro ao mover item")
+		return
+	}
+
+	RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Item movido com sucesso"})
 }
 
 func (h *DocumentHandler) PermanentDelete(w http.ResponseWriter, r *http.Request) {

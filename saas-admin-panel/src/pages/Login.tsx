@@ -52,13 +52,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f4f7fe] p-4 font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
       <div className="w-full max-w-[420px] space-y-8">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#1b254b] rounded-[22px] shadow-2xl shadow-blue-900/20 mb-6 group transition-all hover:scale-110 duration-300">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-[22px] shadow-2xl shadow-blue-900/20 mb-6 group transition-all hover:scale-110 duration-300">
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold text-[#1b254b] tracking-tight mb-2">GED SaaS</h1>
+          <h1 className="text-3xl font-extrabold text-primary tracking-tight mb-2">GED SaaS</h1>
           <p className="text-slate-400 text-sm font-medium">Bem-vindo ao painel administrativo</p>
         </div>
 
@@ -114,7 +114,7 @@ export default function Login() {
                 />
                 <Button 
                   type="submit" 
-                  className="w-full bg-[#1b254b] hover:bg-[#1b254b]/95 text-white font-bold h-11 sm:h-12 rounded-xl sm:rounded-2xl shadow-lg shadow-blue-900/10 transition-all hover:scale-[1.01] active:scale-[0.99] mt-2"
+                  className="w-full bg-primary hover:bg-primary/95 text-white font-bold h-11 sm:h-12 rounded-xl sm:rounded-2xl shadow-lg shadow-blue-900/10 transition-all hover:scale-[1.01] active:scale-[0.99] mt-2"
                   disabled={loading}
                 >
                   {loading ? (

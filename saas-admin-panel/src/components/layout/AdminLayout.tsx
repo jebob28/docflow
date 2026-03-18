@@ -164,7 +164,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* Mobile Menu Trigger */}
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden text-slate-600 hover:bg-white rounded-xl shadow-sm border border-slate-200/50">
+                <Button variant="ghost" size="icon" className="lg:hidden text-slate-600 hover:bg-white rounded-xl shadow-sm border border-border/50">
                   <Menu size={20} />
                 </Button>
               </SheetTrigger>
@@ -198,7 +198,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <div className="flex items-center gap-2 lg:gap-4 ml-4">
-            <div className="flex items-center gap-1 lg:gap-2 pr-2 lg:pr-4 border-r border-slate-200">
+            <div className="flex items-center gap-1 lg:gap-2 pr-2 lg:pr-4 border-r border-border">
               <button 
                 className="p-2 text-slate-400 hover:text-blue-500 hover:bg-white rounded-xl shadow-none hover:shadow-sm transition-all relative"
                 onClick={() => toast.info('Você não possui novas notificações no momento.')}

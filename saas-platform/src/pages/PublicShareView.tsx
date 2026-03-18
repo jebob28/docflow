@@ -53,11 +53,16 @@ export default function PublicShareView() {
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/v1/public/view/${token}${p ? `?p=${encodeURIComponent(p)}` : ''}`;
+      const url = `/api/v1/public/view/${token}`;
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+      const currentPassword = p ?? password;
+      if (currentPassword) {
+        headers['X-Share-Password'] = currentPassword;
+      }
       const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json'
-        }
+        headers
       });
 
       if (response.status === 401) {
@@ -90,7 +95,7 @@ export default function PublicShareView() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, password]);
 
   useEffect(() => {
     fetchData();
@@ -101,9 +106,38 @@ export default function PublicShareView() {
     fetchData(password);
   };
 
-  const handleDownload = (docId?: string) => {
-    const url = `/api/v1/public/view/${token}${password ? `?p=${encodeURIComponent(password)}` : ''}${docId ? `&doc_id=${docId}` : ''}`;
-    window.open(url, '_blank');
+  const handleDownload = async (docId?: string) => {
+    const params = new URLSearchParams();
+    if (docId) {
+      params.set('doc_id', docId);
+    }
+    const url = `/api/v1/public/view/${token}${params.toString() ? `?${params.toString()}` : ''}`;
+    try {
+      const headers: Record<string, string> = {};
+      if (password) {
+        headers['X-Share-Password'] = password;
+      }
+      const response = await fetch(url, { headers });
+
+      if (response.status === 401) {
+        setNeedsPassword(true);
+        toast.error('Senha necessária ou incorreta');
+        return;
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Erro ao baixar documento');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao baixar documento';
+      toast.error(errorMessage);
+    }
   };
 
   if (loading) {
@@ -138,7 +172,7 @@ export default function PublicShareView() {
                 placeholder="Digite a senha de acesso"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-14 rounded-2xl border-slate-100 bg-slate-50/50 focus:bg-white transition-all text-center font-bold tracking-widest"
+                className="h-14 rounded-2xl border-border bg-slate-50/50 focus:bg-white transition-all text-center font-bold tracking-widest"
                 autoFocus
               />
             </div>
@@ -169,7 +203,7 @@ export default function PublicShareView() {
           <Button 
             variant="outline"
             onClick={() => window.location.reload()}
-            className="w-full h-12 rounded-2xl border-slate-200 text-slate-600 font-bold uppercase tracking-widest text-[10px]"
+            className="w-full h-12 rounded-2xl border-border text-slate-600 font-bold uppercase tracking-widest text-[10px]"
           >
             Tentar novamente
           </Button>
@@ -273,7 +307,7 @@ export default function PublicShareView() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent border-slate-100">
+                    <TableRow className="hover:bg-transparent border-border">
                       <TableHead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-8 py-5">Nome do Arquivo</TableHead>
                       <TableHead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest py-5">Tamanho</TableHead>
                       <TableHead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest py-5 text-right pr-8">Ações</TableHead>
@@ -281,10 +315,10 @@ export default function PublicShareView() {
                   </TableHeader>
                   <TableBody>
                     {data?.documents?.map((doc) => (
-                      <TableRow key={doc.id} className="group hover:bg-slate-50/50 transition-all border-slate-50">
+                      <TableRow key={doc.id} className="group hover:bg-slate-50/50 transition-all border-border">
                         <TableCell className="pl-8 py-5">
                           <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <div className="h-12 w-12 rounded-2xl bg-white shadow-sm border border-border flex items-center justify-center group-hover:scale-110 transition-transform">
                               <FileText className="h-6 w-6 text-blue-500" />
                             </div>
                             <div className="flex flex-col">
@@ -332,7 +366,7 @@ export default function PublicShareView() {
         )}
 
         {/* Footer info */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-8 border-t border-slate-200 text-center md:text-left">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-8 border-t border-border text-center md:text-left">
           <div className="flex items-center gap-2 text-slate-400">
             <Globe className="h-4 w-4" />
             <span className="text-[10px] font-bold uppercase tracking-widest">GED SaaS - Gestão de Documentos</span>

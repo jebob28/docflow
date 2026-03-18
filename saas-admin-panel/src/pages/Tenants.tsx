@@ -76,7 +76,7 @@ export default function Tenants() {
       toast.success("Capacidade atualizada com sucesso!");
       setIsQuotaModalOpen(false);
       fetchTenants();
-    } catch (err: unknown) {
+    } catch {
       toast.error("Erro ao atualizar capacidade.");
     } finally {
       setIsSaving(false);
@@ -162,7 +162,7 @@ export default function Tenants() {
   return (
     <div className="space-y-6">
       <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
-        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
               <Building2 size={16} className="text-blue-600" />
@@ -178,17 +178,17 @@ export default function Tenants() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button size="sm" className="w-full sm:w-auto bg-[#1b254b] hover:bg-[#1b254b]/90 text-white text-[11px] h-9 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-900/10">
+              <Button size="sm" className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white text-[11px] h-9 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-900/10">
                 <Plus size={14} />
                 Novo Tenant
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl bg-white overflow-hidden rounded-[32px]">
               <form onSubmit={handleCreateTenant}>
-                <div className="p-8 border-b border-slate-100/80">
+                <div className="p-8 border-b border-border/80">
                   <div className="flex items-center gap-3 mb-1">
                     <div className="p-2 rounded-xl bg-orange-50">
-                      <Building2 className="h-6 w-6 text-[#e66a31] fill-[#e66a31]/10" />
+                      <Building2 className="h-6 w-6 text-accent fill-accent/10" />
                     </div>
                     <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">
                       {editingTenant ? 'Editar Empresa' : 'Nova Empresa'}
@@ -207,7 +207,7 @@ export default function Tenants() {
                       placeholder="Ex: Minha Empresa LTDA"
                       value={newTenant.name}
                       onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -218,7 +218,7 @@ export default function Tenants() {
                       placeholder="Ex: minha-empresa"
                       value={newTenant.slug}
                       onChange={(e) => setNewTenant({ ...newTenant, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -229,7 +229,7 @@ export default function Tenants() {
                       placeholder="00.000.000/0000-00"
                       value={newTenant.document}
                       onChange={(e) => setNewTenant({ ...newTenant, document: e.target.value })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -250,7 +250,7 @@ export default function Tenants() {
                     className={cn(
                       "px-8 font-bold h-12 rounded-2xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
                       newTenant.name.trim() && newTenant.slug.trim()
-                        ? "bg-[#e66a31] hover:bg-[#d45a20] text-white shadow-orange-900/10" 
+                        ? "bg-accent hover:bg-accent/90 text-white shadow-orange-900/10" 
                         : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                     )}
                   >
@@ -290,7 +290,7 @@ export default function Tenants() {
                 </TableHeader>
                 <TableBody>
                   {tenants.map((tenant) => (
-                    <TableRow key={tenant.id} className="hover:bg-slate-50/30 transition-colors border-b border-slate-50 last:border-0">
+                    <TableRow key={tenant.id} className="hover:bg-slate-50/30 transition-colors border-b border-border last:border-0">
                       <TableCell className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 lg:gap-3">
                           <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-blue-50 flex items-center justify-center text-[10px] lg:text-[12px] text-blue-600 font-bold border border-blue-100 shadow-sm shrink-0">
@@ -314,7 +314,7 @@ export default function Tenants() {
                         <span className={`px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-lg text-[9px] lg:text-[10px] font-bold uppercase tracking-wider border ${
                           tenant.is_active 
                             ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                            : "bg-slate-50 text-slate-400 border-slate-100"
+                            : "bg-slate-50 text-slate-400 border-border"
                         }`}>
                           {tenant.is_active ? "Ativo" : "Inativo"}
                         </span>
@@ -394,10 +394,10 @@ export default function Tenants() {
       <Dialog open={isQuotaModalOpen} onOpenChange={setIsQuotaModalOpen}>
         <DialogContent className="sm:max-w-[420px] p-0 border-none shadow-2xl bg-white overflow-hidden rounded-[32px]">
           <form onSubmit={handleUpdateQuota}>
-            <div className="p-8 border-b border-slate-100/80">
+            <div className="p-8 border-b border-border/80">
               <div className="flex items-center gap-3 mb-1">
                 <div className="p-2 rounded-xl bg-orange-50">
-                  <Building2 className="h-6 w-6 text-[#e66a31] fill-[#e66a31]/10" />
+                  <Building2 className="h-6 w-6 text-accent fill-accent/10" />
                 </div>
                 <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Alterar Capacidade</DialogTitle>
               </div>
@@ -415,7 +415,7 @@ export default function Tenants() {
                   min="1"
                   value={newQuota}
                   onChange={(e) => setNewQuota(Number(e.target.value))}
-                  className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                  className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                   required
                 />
               </div>
@@ -435,7 +435,7 @@ export default function Tenants() {
                 disabled={isSaving}
                 className={cn(
                   "px-8 font-bold h-12 rounded-2xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
-                  "bg-[#e66a31] hover:bg-[#d45a20] text-white shadow-orange-900/10"
+                  "bg-accent hover:bg-accent/90 text-white shadow-orange-900/10"
                 )}
               >
                 {isSaving ? (

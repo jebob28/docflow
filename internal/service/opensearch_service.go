@@ -24,6 +24,7 @@ type DocumentIndex struct {
 	OCRText   string    `json:"ocr_text"`
 	Extension string    `json:"extension"`
 	SectorID  *uuid.UUID `json:"sector_id"`
+	FolderID  *uuid.UUID `json:"folder_id"`
 	UpdatedAt string    `json:"updated_at"`
 }
 
@@ -81,6 +82,7 @@ func (s *OpenSearchService) EnsureIndex(ctx context.Context) {
 					"ocr_text": { "type": "text", "analyzer": "brazilian" },
 					"extension": { "type": "keyword" },
 					"sector_id": { "type": "keyword" },
+					"folder_id": { "type": "keyword" },
 					"updated_at": { "type": "date" }
 				}
 			}

@@ -15,7 +15,11 @@ import {
   Upload,
   ScanLine,
   Clock,
-  GitPullRequest
+  GitPullRequest,
+  LayoutTemplate,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -45,6 +49,16 @@ interface SidebarItemProps {
   sidebarActiveIndicatorColor: string;
   sidebarActiveTextColor: string;
   sidebarActiveIconColor: string;
+  isExpanded?: boolean;
+}
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  message?: string | null;
+  link?: string | null;
+  read_at?: string | null;
+  created_at: string;
 }
 
 const SidebarItem = ({
@@ -60,15 +74,17 @@ const SidebarItem = ({
   sidebarHoverBackgroundColor,
   sidebarActiveIndicatorColor,
   sidebarActiveTextColor,
-  sidebarActiveIconColor
+  sidebarActiveIconColor,
+  isExpanded = true
 }: SidebarItemProps) => {
   const textColor = active ? sidebarActiveTextColor : sidebarTextColor;
   const iconColor = active ? sidebarActiveIconColor : sidebarIconColor;
   return (
-    <Link to={href}>
+    <Link to={href} title={!isExpanded ? label : undefined}>
       <div
         className={cn(
-          "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 group relative",
+          "flex items-center gap-3 rounded-lg transition-all duration-200 group relative",
+          isExpanded ? "px-4 py-2.5" : "justify-center p-2.5 mx-2",
           active ? "bg-[var(--sidebar-active-bg)]" : "hover:bg-[var(--sidebar-hover-bg)]"
         )}
         style={{
@@ -84,8 +100,8 @@ const SidebarItem = ({
             style={{ backgroundColor: sidebarActiveIndicatorColor || primaryColor }}
           />
         )}
-        <Icon className="h-4.5 w-4.5" style={{ color: iconColor }} />
-        <span className="text-sm">{label}</span>
+        <Icon className="h-4.5 w-4.5 flex-shrink-0" style={{ color: iconColor }} />
+        {isExpanded && <span className="text-sm truncate">{label}</span>}
       </div>
     </Link>
   );
@@ -94,6 +110,7 @@ const SidebarItem = ({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isSidebarExpanded, setIsSidebarExpanded] = React.useState(true);
   const [userData, setUserData] = React.useState({
     name: 'Carlos Silva',
     role: 'Admin',
@@ -102,8 +119,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     usedStorageGB: 0,
     percentUsed: 0,
   });
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = React.useState(false);
   const [customization, setCustomization] = React.useState({
-    primary_color: '#1a355b',
+    primary_color: 'var(--primary)',
     secondary_color: '#f8fafc',
     sidebar_color: '#ffffff',
     sidebar_text_color: '#64748b',
@@ -160,8 +179,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   React.useEffect(() => {
     const checkPWA = () => {
+      const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
-                          (window.navigator as any).standalone || 
+                          navigatorWithStandalone.standalone === true || 
                           document.referrer.includes('android-app://');
       setIsPWA(isStandalone);
     };
@@ -199,6 +219,72 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .slice(0, 2)
       .join('')
       .toUpperCase();
+  };
+
+  const unreadNotifications = React.useMemo(() => {
+    return notifications.filter(item => !item.read_at).length;
+  }, [notifications]);
+
+  const formatNotificationDate = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+  };
+
+  const fetchNotifications = React.useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setNotifications([]);
+        return;
+      }
+      const response = await fetch('/api/v1/contracts/notifications', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data: NotificationItem[] = await response.json();
+        setNotifications(data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar notificações:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const markNotificationRead = async (notificationId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        return;
+      }
+      const response = await fetch(`/api/v1/contracts/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.map(item => item.id === notificationId ? { ...item, read_at: new Date().toISOString() } : item));
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar notificação:', error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: NotificationItem) => {
+    if (!notification.read_at) {
+      await markNotificationRead(notification.id);
+    }
+    if (notification.link) {
+      if (notification.link.startsWith('http')) {
+        window.location.href = notification.link;
+        return;
+      }
+      navigate(notification.link);
+    }
   };
 
   React.useEffect(() => {
@@ -277,6 +363,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [navigate]);
 
   React.useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications, location.pathname]);
+
+  React.useEffect(() => {
     const handleCustomizationUpdated = (event: Event) => {
       const detail = (event as CustomEvent).detail;
       if (detail) {
@@ -295,6 +385,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const items = [
       { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
       { icon: Folder, label: 'Meus Arquivos', href: '/documents' },
+      { 
+        icon: FileText, 
+        label: 'Contratos', 
+        href: '/contracts' 
+      },
+      { 
+        icon: LayoutTemplate, 
+        label: 'Templates', 
+        href: '/contracts/templates' 
+      },
+      { 
+        icon: AlertTriangle, 
+        label: 'Vencimentos', 
+        href: '/contracts/expirations' 
+      },
       { icon: Share2, label: 'Compartilhados', href: '/shared' },
       ...(isPWA ? [{ icon: ScanLine, label: 'Digitalização', href: '/scanner' }] : []),
       { icon: Clock, label: 'Temporalidade', href: '/retention' },
@@ -325,6 +430,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const items = [
       { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
       { icon: Folder, label: 'Arquivos', href: '/documents' },
+      {
+        icon: FileText,
+        label: 'Contratos',
+        href: '/contracts',
+        children: [
+          { icon: FileText, label: 'Contratos', href: '/contracts' },
+          { icon: AlertTriangle, label: 'Vencimentos', href: '/contracts/expirations' },
+          { icon: LayoutTemplate, label: 'Templates', href: '/contracts/templates' },
+        ],
+      },
       ...(isPWA ? [{ icon: ScanLine, label: 'Scanner', href: '/scanner' }] : []),
       { icon: Share2, label: 'Compart.', href: '/shared' },
       ...(!isPWA ? [{ icon: Users, label: 'Acessos', href: '/access-management' }] : []),
@@ -346,32 +461,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const sidebarContent = (
     <div
-      className="flex h-full flex-col border-r"
+      className="flex h-full flex-col border-r relative transition-all duration-300"
       style={{ backgroundColor: customization.sidebar_color, borderColor: sidebarAdvanced.border_color }}
     >
-      <div className="p-6 flex items-center gap-3">
-        <div className="rounded-xl p-2 shadow-lg shadow-blue-900/10" style={{ backgroundColor: sidebarAdvanced.brand_bg_color }}>
+      <button
+        onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+        className="absolute -right-3 top-8 bg-white border border-slate-200 rounded-full p-1 shadow-sm z-50 text-slate-500 hover:text-slate-700 hidden lg:flex"
+      >
+        {isSidebarExpanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </button>
+
+      <div className={cn("p-6 flex items-center relative", isSidebarExpanded ? "gap-3" : "justify-center px-2")}>
+        <div className="rounded-xl p-2 shadow-lg shadow-blue-900/10 flex-shrink-0" style={{ backgroundColor: sidebarAdvanced.brand_bg_color }}>
           {customization.logo_url ? (
             <img src={customization.logo_url} alt="Logo" className="h-5 w-5 object-contain" />
           ) : (
             <FileText className="h-5 w-5" style={{ color: sidebarAdvanced.brand_icon_color }} />
           )}
         </div>
-        <div>
-          <h1 className="font-bold text-lg tracking-tight leading-none" style={{ color: sidebarAdvanced.brand_title_color }}>
-            {sidebarAdvanced.system_name || 'DocFlow'}
-          </h1>
-          <p className="text-[10px] font-bold uppercase tracking-wider mt-0.5" style={{ color: sidebarAdvanced.brand_subtitle_color }}>
-            {sidebarAdvanced.system_subtitle || 'Gestão de Documentos'}
-          </p>
-        </div>
+        {isSidebarExpanded && (
+          <div className="overflow-hidden">
+            <h1 className="font-bold text-lg tracking-tight leading-none truncate" style={{ color: sidebarAdvanced.brand_title_color }}>
+              {sidebarAdvanced.system_name || 'DocFlow'}
+            </h1>
+            <p className="text-[10px] font-bold uppercase tracking-wider mt-0.5 truncate" style={{ color: sidebarAdvanced.brand_subtitle_color }}>
+              {sidebarAdvanced.system_subtitle || 'Gestão de Documentos'}
+            </p>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 px-3 py-4 space-y-1">
+      <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
         {menuItems.map((item) => (
           <SidebarItem 
             key={item.href}
             {...item}
+            isExpanded={isSidebarExpanded}
             theme="light"
             primaryColor={customization.primary_color}
             sidebarTextColor={customization.sidebar_text_color}
@@ -389,9 +514,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="p-4 border-t space-y-1" style={{ borderColor: sidebarAdvanced.border_color }}>
         {userData.role?.toUpperCase() !== 'USER' && (
-          <Link to="/settings">
+          <Link to="/settings" title={!isSidebarExpanded ? 'Configurações' : undefined}>
             <div className={cn(
-              "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all",
+              "flex items-center gap-3 rounded-lg transition-all",
+              isSidebarExpanded ? "px-4 py-2.5" : "justify-center p-2.5 mx-1",
               location.pathname === '/settings' ? "bg-[var(--sidebar-active-bg)]" : "hover:bg-[var(--sidebar-hover-bg)]"
             )} style={{
               color: customization.sidebar_text_color,
@@ -399,19 +525,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               '--sidebar-active-bg': sidebarAdvanced.settings_active_bg,
               '--sidebar-hover-bg': sidebarAdvanced.settings_hover_bg
             } as React.CSSProperties}>
-              <Settings className="h-4.5 w-4.5" style={{ color: customization.sidebar_icon_color }} />
-              <span className="text-sm">Configurações</span>
+              <Settings className="h-4.5 w-4.5 flex-shrink-0" style={{ color: customization.sidebar_icon_color }} />
+              {isSidebarExpanded && <span className="text-sm truncate">Configurações</span>}
             </div>
           </Link>
         )}
         
         <button 
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all hover:bg-[var(--sidebar-hover-bg)]"
+          title={!isSidebarExpanded ? 'Sair do Sistema' : undefined}
+          className={cn(
+            "w-full flex items-center gap-3 rounded-lg transition-all hover:bg-[var(--sidebar-hover-bg)]",
+            isSidebarExpanded ? "px-4 py-2.5" : "justify-center p-2.5 mx-1"
+          )}
           style={{ color: sidebarAdvanced.logout_text_color, '--sidebar-hover-bg': sidebarAdvanced.logout_hover_bg } as React.CSSProperties}
         >
-          <LogOut className="h-4.5 w-4.5" style={{ color: sidebarAdvanced.logout_icon_color }} />
-          <span className="text-sm font-medium">Sair do Sistema</span>
+          <LogOut className="h-4.5 w-4.5 flex-shrink-0" style={{ color: sidebarAdvanced.logout_icon_color }} />
+          {isSidebarExpanded && <span className="text-sm font-medium truncate">Sair do Sistema</span>}
         </button>
       </div>
     </div>
@@ -421,16 +551,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans">
-      <aside className={cn("hidden lg:flex lg:w-64", isScannerPage && "lg:hidden")}>
+      <aside className={cn("hidden lg:flex transition-all duration-300", isSidebarExpanded ? "lg:w-64" : "lg:w-20", isScannerPage && "lg:hidden")}>
         {sidebarContent}
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Topbar */}
         {!isScannerPage && (
-          <header className="bg-white/70 backdrop-blur-xl border-b border-slate-100/50 sticky top-0 z-30 pt-safe">
-            <div className="flex items-center justify-between px-5 h-14 lg:h-20 lg:px-8">
+          <header className="bg-white/70 backdrop-blur-xl border-b border-border/50 sticky top-0 z-30 pt-safe">
+            <div className="flex items-center justify-between px-5 h-14 lg:h-20 lg:px-8 w-full max-w-7xl mx-auto">
               {/* Mobile Brand (App Native Style) */}
               <div className="flex items-center gap-2.5 lg:hidden">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm bg-[#0f172a]">
@@ -444,17 +574,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
 
               {/* Desktop Search / Mobile Spacer */}
-              <div className="hidden lg:flex flex-1 max-w-xl relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-[#1a355b] transition-colors" />
-                <Input 
-                  placeholder="Pesquisar..." 
-                  className="pl-11 h-11 bg-slate-50 border-none rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-blue-500/10 placeholder:text-slate-400 transition-all w-full"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      toast.info(`Pesquisando por: "${(e.target as HTMLInputElement).value}"`);
-                    }
-                  }}
-                />
+              <div className="hidden lg:flex flex-1 max-w-2xl px-4">
+                <div className="relative w-full group">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                  <Input 
+                    placeholder="Pesquisar..." 
+                    className="w-full pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all rounded-xl"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        toast.info(`Pesquisando por: "${(e.target as HTMLInputElement).value}"`);
+                      }
+                    }}
+                  />
+                </div>
               </div>
 
               {/* Actions (Native Icons) */}
@@ -466,20 +598,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Search className="h-5 w-5" />
                 </button>
                 
-                <button 
-                  className="p-2 text-[#0f172a] hover:bg-slate-100 rounded-full transition-colors relative"
-                  onClick={() => toast.info('Você não possui novas notificações.')}
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-600 rounded-full ring-2 ring-white" />
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button 
+                      className="p-2 text-[#0f172a] hover:bg-slate-100 rounded-full transition-colors relative"
+                      onClick={() => {
+                        if (notifications.length === 0 && !notificationsLoading) {
+                          toast.info('Você não possui novas notificações.');
+                        }
+                      }}
+                    >
+                      <Bell className="h-5 w-5" />
+                      {unreadNotifications > 0 && (
+                        <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-600 rounded-full ring-2 ring-white" />
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80 bg-white border-border p-2 rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-200">
+                    {notificationsLoading && (
+                      <div className="px-3 py-4 text-xs text-slate-400 font-medium">Carregando notificações...</div>
+                    )}
+                    {!notificationsLoading && notifications.length === 0 && (
+                      <div className="px-3 py-4 text-xs text-slate-400 font-medium">Sem notificações no momento.</div>
+                    )}
+                    {!notificationsLoading && notifications.length > 0 && (
+                      <div className="max-h-72 overflow-y-auto">
+                        {notifications.map((notification) => (
+                          <DropdownMenuItem
+                            key={notification.id}
+                            className={cn(
+                              "flex flex-col items-start gap-1 rounded-xl px-3 py-2 focus:bg-slate-50 cursor-pointer",
+                              notification.read_at ? "opacity-70" : "opacity-100"
+                            )}
+                            onClick={() => handleNotificationClick(notification)}
+                          >
+                            <span className="text-xs font-bold text-slate-800">{notification.title}</span>
+                            {notification.message && (
+                              <span className="text-[11px] text-slate-400 font-medium line-clamp-2">{notification.message}</span>
+                            )}
+                            <span className="text-[10px] text-slate-400 font-medium">{formatNotificationDate(notification.created_at)}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                <Link to="/profile" className="flex items-center gap-3 lg:pl-6 lg:border-l lg:border-slate-100 hover:opacity-80 transition-opacity">
+                <Link to="/profile" className="flex items-center gap-3 lg:pl-6 lg:border-l lg:border-border hover:opacity-80 transition-opacity">
                   <div className="hidden lg:text-right lg:block">
                     <p className="text-sm font-bold text-slate-900 leading-none">{userData.name}</p>
                     <p className="text-[11px] text-slate-400 font-medium mt-1">{userData.role}</p>
                   </div>
-                  <Avatar className="h-8 w-8 lg:h-10 lg:w-10 border border-slate-200 shadow-sm">
+                  <Avatar className="h-8 w-8 lg:h-10 lg:w-10 border border-border shadow-sm">
                     {userData.avatar && <AvatarImage src={userData.avatar} />}
                     <AvatarFallback className="bg-slate-100 text-[#0f172a] font-bold text-[10px]">
                       {getInitials(userData.name)}
@@ -507,8 +677,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             style={{ gridTemplateColumns: `repeat(${bottomNavItems.length}, minmax(0, 1fr))` }}
           >
             {bottomNavItems.map((item) => {
-              const isActive = location.pathname === item.href;
+              const isActive = item.children
+                ? item.children.some(child => location.pathname === child.href) || location.pathname === item.href
+                : location.pathname === item.href;
               const color = isActive ? "#3b82f6" : "#94a3b8";
+
+              if (item.children) {
+                return (
+                  <DropdownMenu key={item.href}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-1.5 transition-all active:scale-90",
+                          isActive ? "relative" : "opacity-60"
+                        )}
+                      >
+                        <div className={cn(
+                          "p-2 rounded-2xl transition-all",
+                          isActive ? "bg-slate-800 shadow-inner" : ""
+                        )}>
+                          <item.icon className="h-5 w-5" style={{ color }} />
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-bold tracking-tight",
+                          isActive ? "text-white" : "text-slate-500"
+                        )}>
+                          {item.label}
+                        </span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="center"
+                      side="top"
+                      sideOffset={16}
+                      className="w-52 bg-white border-border p-2 rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-200"
+                    >
+                      {item.children.map(child => (
+                        <DropdownMenuItem
+                          key={child.href}
+                          className="flex items-center gap-3 p-3 rounded-xl focus:bg-slate-50 cursor-pointer"
+                          onClick={() => navigate(child.href)}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center">
+                            <child.icon className="h-4.5 w-4.5 text-slate-600" />
+                          </div>
+                          <span className="text-sm font-bold text-slate-700">{child.label}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                );
+              }
+
               return (
                 <Link 
                   key={item.href} 
@@ -548,7 +768,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Plus className="h-6 w-6" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="mb-2 w-56 bg-white border-slate-100 p-2 rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-200">
+            <DropdownMenuContent align="end" className="mb-2 w-56 bg-white border-border p-2 rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-200">
               <DropdownMenuItem 
                 className="flex items-center gap-3 p-3 rounded-xl focus:bg-indigo-50 cursor-pointer group"
                 onClick={() => {

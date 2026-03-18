@@ -160,7 +160,7 @@ export default function CRM() {
       case 'NEW':
         return 'bg-purple-50 text-purple-600 border-purple-100';
       default:
-        return 'bg-slate-50 text-slate-500 border-slate-100';
+        return 'bg-slate-50 text-slate-500 border-border';
     }
   };
 
@@ -208,7 +208,7 @@ export default function CRM() {
       </div>
       
       <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
-        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-border flex flex-col sm:flex-row items-center justify-between gap-4">
           <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
               <BarChart3 size={16} className="text-blue-600" />
@@ -217,17 +217,17 @@ export default function CRM() {
           </CardTitle>
           <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="w-full sm:w-auto bg-[#1b254b] hover:bg-[#1b254b]/90 text-white text-[11px] h-9 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
+              <Button size="sm" className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white text-[11px] h-9 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
                 <Plus size={14} />
                 Novo Lead
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl bg-white overflow-hidden rounded-[32px]">
               <form onSubmit={handleCreateLead}>
-                <div className="p-8 border-b border-slate-100/80">
+                <div className="p-8 border-b border-border/80">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="p-2 rounded-xl bg-orange-50">
-                      <TrendingUp className="h-6 w-6 text-[#e66a31] fill-[#e66a31]/10" />
+                    <div className="p-2 rounded-xl bg-orange-50/50">
+                      <TrendingUp className="h-6 w-6 text-accent fill-accent/10" />
                     </div>
                     <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">
                       {editingLead ? 'Editar Lead' : 'Novo Lead'}
@@ -246,7 +246,7 @@ export default function CRM() {
                         value={newLead.status} 
                         onValueChange={(value) => setNewLead({ ...newLead, status: value })}
                       >
-                        <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus:ring-[#e66a31]/20 font-medium">
+                        <SelectTrigger className="h-12 bg-white border-none rounded-2xl px-4 text-sm focus:ring-accent/20 font-medium">
                           <SelectValue placeholder="Selecione o status" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-none shadow-xl">
@@ -266,7 +266,7 @@ export default function CRM() {
                       placeholder="Ex: Empresa Ltda"
                       value={newLead.company_name}
                       onChange={(e) => setNewLead({ ...newLead, company_name: e.target.value })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -278,7 +278,7 @@ export default function CRM() {
                       placeholder="Ex: João Silva"
                       value={newLead.contact_name}
                       onChange={(e) => setNewLead({ ...newLead, contact_name: e.target.value })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -292,7 +292,7 @@ export default function CRM() {
                         placeholder="contato@empresa.com"
                         value={newLead.email}
                         onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
-                        className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                        className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                         required
                       />
                     </div>
@@ -304,7 +304,7 @@ export default function CRM() {
                         placeholder="5000"
                         value={newLead.estimated_value}
                         onChange={(e) => setNewLead({ ...newLead, estimated_value: Number(e.target.value) })}
-                        className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                        className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                         required
                       />
                     </div>
@@ -326,7 +326,7 @@ export default function CRM() {
                     className={cn(
                       "px-8 font-bold h-12 rounded-2xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
                       newLead.company_name.trim() 
-                        ? "bg-[#e66a31] hover:bg-[#d45a20] text-white shadow-orange-900/10" 
+                        ? "bg-accent hover:bg-accent/90 text-white shadow-orange-900/10" 
                         : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                     )}
                   >
@@ -359,10 +359,10 @@ export default function CRM() {
                 </TableHeader>
                 <TableBody>
                   {leads.map((lead) => (
-                    <TableRow key={lead.id} className="hover:bg-slate-50/30 transition-colors border-b border-slate-50 last:border-0">
+                    <TableRow key={lead.id} className="hover:bg-slate-50/30 transition-colors border-b border-border last:border-0">
                       <TableCell className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 lg:gap-3">
-                          <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] lg:text-[11px] text-slate-600 font-bold border border-slate-100 shadow-sm shrink-0">
+                          <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] lg:text-[11px] text-slate-600 font-bold border border-border shadow-sm shrink-0">
                             {lead.company_name.substring(0, 2).toUpperCase()}
                           </div>
                           <span className="font-bold text-[11px] lg:text-xs text-slate-700 truncate max-w-[100px] lg:max-w-none">{lead.company_name}</span>

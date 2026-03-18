@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/vault/api"
 )
@@ -115,20 +116,59 @@ func (s *VaultService) DecryptData(ctx context.Context, tenantID string, ciphert
 
 	secret, err := s.client.Logical().Write(path, data)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao descriptografar dados no vault: %v", err)
+		// Se a chave não existir, o erro do Vault é 400 "encryption key not found"
+		// Tentar criar a chave caso ela tenha sido deletada/perdida (ajuda a novos uploads)
+		if strings.Contains(err.Error(), "encryption key not found") {
+			if createErr := s.CreateTenantKey(ctx, tenantID); createErr == nil {
+				// Tentar descriptografar novamente (quase sempre vai falhar com "ciphertext authentication failed"
+				// se o dado foi encriptado com a chave antiga, pois a nova chave é diferente)
+				secret, err = s.client.Logical().Write(path, data)
+				if err != nil {
+					if strings.Contains(err.Error(), "cipher: message authentication failed") {
+						return nil, fmt.Errorf("erro na descriptografia Vault: a chave mestra original do tenant foi perdida e a nova chave não pode descriptografar este arquivo (os dados antigos são irrecuperáveis)")
+					}
+					return nil, fmt.Errorf("erro na descriptografia Vault: a chave mestra do tenant foi perdida e recriada, os dados antigos são irrecuperáveis: %v", err)
+				}
+				// Se por algum milagre funcionar, continuamos
+			} else {
+				return nil, fmt.Errorf("erro ao descriptografar dados no vault: chave mestra do tenant não encontrada e não pôde ser recriada: %v", createErr)
+			}
+		} else if strings.Contains(err.Error(), "cipher: message authentication failed") {
+			return nil, fmt.Errorf("erro na descriptografia Vault: falha na autenticação (possível troca de chave mestra, perda de persistência do Vault ou dados corrompidos para o tenant %s)", tenantID)
+		} else {
+			return nil, fmt.Errorf("erro ao descriptografar dados no vault para o tenant %s: %v", tenantID, err)
+		}
 	}
 
 	plaintextBase64, ok := secret.Data["plaintext"].(string)
 	if !ok {
-		return nil, fmt.Errorf("formato de resposta do vault inválido")
+		return nil, fmt.Errorf("formato de resposta do vault inválido para o tenant %s", tenantID)
 	}
 
 	plaintext, err := base64.StdEncoding.DecodeString(plaintextBase64)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao decodificar base64 do vault: %v", err)
+		return nil, fmt.Errorf("erro ao decodificar base64 do vault para o tenant %s: %v", tenantID, err)
 	}
 
 	return plaintext, nil
+}
+
+// SyncTenantKeys garante que todos os tenants fornecidos tenham chaves no Vault
+func (s *VaultService) SyncTenantKeys(ctx context.Context, tenantIDs []string) error {
+	for _, id := range tenantIDs {
+		keyName := fmt.Sprintf("tenant-%s", id)
+		path := fmt.Sprintf("transit/keys/%s", keyName)
+
+		// Verificar se a chave já existe
+		secret, err := s.client.Logical().Read(path)
+		if err != nil || secret == nil {
+			fmt.Printf("Sincronizando chave do Vault para tenant %s...\n", id)
+			if err := s.CreateTenantKey(ctx, id); err != nil {
+				fmt.Printf("Aviso: falha ao criar chave para tenant %s: %v\n", id, err)
+			}
+		}
+	}
+	return nil
 }
 
 // EncryptDataEnvelope usa o Vault Transit para criptografar uma chave local (DEK)

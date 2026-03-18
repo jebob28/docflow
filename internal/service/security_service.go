@@ -32,15 +32,10 @@ type SecurityService struct {
 }
 
 func NewSecurityService() *SecurityService {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "segredo-padrao-mudar-em-producao"
-	}
-
 	vtKey := os.Getenv("API_KEY_VIRUSTOTAL")
 
 	return &SecurityService{
-		jwtSecret:        []byte(secret),
+		jwtSecret:        []byte(getJWTSecret()),
 		virusTotalAPIKey: vtKey,
 	}
 }

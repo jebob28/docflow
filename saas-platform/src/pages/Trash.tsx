@@ -213,7 +213,7 @@ export default function Trash() {
             <Checkbox 
               checked={selectedIds.includes(item.id)}
               onCheckedChange={() => toggleSelect(item.id)}
-              className="border-slate-300 data-[state=checked]:bg-[#1e293b] data-[state=checked]:border-[#1e293b] h-5 w-5 rounded-md"
+              className="border-border data-[state=checked]:bg-[#1e293b] data-[state=checked]:border-[#1e293b] h-5 w-5 rounded-md"
             />
             <div className="p-2 rounded-xl bg-slate-50">
               {getFileIcon(item.type, item.extension)}
@@ -225,7 +225,7 @@ export default function Trash() {
                 <MoreHorizontal className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl p-1.5 bg-white border border-slate-100">
+            <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl p-1.5 bg-white border border-border">
               {item.can_edit ? (
                 <>
                   <DropdownMenuItem 
@@ -261,7 +261,7 @@ export default function Trash() {
             {item.sector_name || 'Geral'}
           </span>
           {item.document_type && (
-            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-border/50">
               {item.document_type}
             </span>
           )}
@@ -270,7 +270,7 @@ export default function Trash() {
           </span>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+        <div className="flex items-center justify-between pt-3 border-t border-border">
           <div className="flex flex-col">
             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Excluído em</span>
             <span className="text-[10px] font-bold text-slate-600">
@@ -352,12 +352,12 @@ export default function Trash() {
         )}
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100">
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-border">
             <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
             <p className="text-slate-500 font-bold">Carregando itens...</p>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 text-center px-6">
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-border text-center px-6">
             <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mb-6">
               <Trash2 className="w-10 h-10 text-slate-300" />
             </div>
@@ -371,12 +371,12 @@ export default function Trash() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader className="bg-slate-50/50">
-                    <TableRow className="hover:bg-transparent border-slate-100">
+                    <TableRow className="hover:bg-transparent border-border">
                       <TableHead className="w-14 pl-8">
                         <Checkbox 
                           checked={selectedIds.length > 0 && selectedIds.length === filteredItems.length}
                           onCheckedChange={toggleSelectAll}
-                          className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         />
                       </TableHead>
                       <TableHead className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Nome do Arquivo</TableHead>
@@ -388,12 +388,12 @@ export default function Trash() {
                   </TableHeader>
                   <TableBody>
                     {filteredItems.map((item) => (
-                      <TableRow key={item.id} className="group hover:bg-slate-50/50 transition-colors border-slate-50 h-16">
+                      <TableRow key={item.id} className="group hover:bg-slate-50/50 transition-colors border-border h-16">
                         <TableCell className="pl-8">
                           <Checkbox 
                             checked={selectedIds.includes(item.id)}
                             onCheckedChange={() => toggleSelect(item.id)}
-                            className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                           />
                         </TableCell>
                         <TableCell>
@@ -471,9 +471,9 @@ export default function Trash() {
                 <span className="text-slate-900">{filteredItems.length}</span> de <span className="text-slate-900">{items.length}</span> arquivos
               </p>
               <div className="flex items-center gap-1.5">
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-slate-200" disabled><ChevronLeft className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-border" disabled><ChevronLeft className="h-4 w-4" /></Button>
                 <Button variant="default" className="h-9 w-9 bg-primary text-white font-black text-xs rounded-xl">1</Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-slate-200" onClick={() => toast.info("Em desenvolvimento")}><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-border" onClick={() => toast.info("Em desenvolvimento")}><ChevronRight className="h-4 w-4" /></Button>
               </div>
             </div>
           </>

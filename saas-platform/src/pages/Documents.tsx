@@ -4,6 +4,8 @@ import {
   FileText, 
   Share2, 
   Folder,
+  FolderOpen,
+  FolderClosed,
   FileSpreadsheet,
   FileImage,
   Search,
@@ -14,7 +16,7 @@ import {
   ChevronDown,
   Plus,
   Type,
-  Upload,
+  Upload as LucideUpload,
   Loader2,
   CloudUpload,
   CheckCircle2,
@@ -64,6 +66,17 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import DocumentViewer from '@/components/DocumentViewer';
 import ShareModal from '@/components/ShareModal';
+import { 
+  Modal as AntModal, 
+  Select as AntSelect, 
+  Upload as AntUpload, 
+  Typography, 
+  Tag as AntTag,
+  Progress as AntProgress,
+  Divider
+} from 'antd';
+const { Title, Text } = Typography;
+const { Dragger } = AntUpload;
 
 interface Tag {
   id: string;
@@ -153,7 +166,7 @@ export default function Documents() {
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [newFolderColor, setNewFolderColor] = useState('#1a355b');
+  const [newFolderColor, setNewFolderColor] = useState('primary');
   const [selectedFiles, setSelectedFiles] = useState<Array<{ file: File; status: 'pending' | 'uploading' | 'completed' | 'error'; progress: number; id: string }>>([]);
   const [selectedSectorId, setSelectedSectorId] = useState<string>('');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
@@ -195,7 +208,7 @@ export default function Documents() {
   const [confidentialItem, setConfidentialItem] = useState<Item | null>(null);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState('#3b82f6');
+  const [newTagColor, setNewTagColor] = useState('accent');
 
   // Estados para Versões
   const [userRole, setUserRole] = useState<string>('');
@@ -206,6 +219,8 @@ export default function Documents() {
 
   const [actionLoading, setActionLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<Item | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   // Funções para Versões
   const fetchVersions = async (docId: string) => {
@@ -491,16 +506,16 @@ export default function Documents() {
     fileInputRef.current?.click();
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOverUpload = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeaveUpload = () => {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDropUpload = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
@@ -515,8 +530,7 @@ export default function Documents() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const appendSelectedFiles = (files: File[]) => {
     if (files.length > 0) {
       const newFiles = files.map(file => ({
         file,
@@ -526,6 +540,11 @@ export default function Documents() {
       }));
       setSelectedFiles(prev => [...prev, ...newFiles]);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    appendSelectedFiles(files);
   };
 
   const removeFile = (id: string) => {
@@ -617,14 +636,46 @@ export default function Documents() {
   }, [selectedFilterSectorId, selectedFolderId, selectedFilterTagId, searchQuery, fetchData]);
 
   // Efeito para abrir documento via URL
-   useEffect(() => {
-     if (id && documents.length > 0) {
-       const doc = documents.find(d => d.id === id);
-       if (doc) {
-         handleView({ ...doc, itemType: 'file' });
-       }
-     }
-   }, [id, documents]);
+  const lastOpenedId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const openDocument = async () => {
+      if (id && id !== lastOpenedId.current) {
+        // Tentar encontrar na lista atual primeiro
+        const doc = documents.find(d => d.id === id);
+        
+        if (doc) {
+          lastOpenedId.current = id;
+          handleView({ ...doc, itemType: 'file' });
+        } else {
+          // Se não estiver na lista, buscar detalhes do backend
+          try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/v1/documents/${id}/details`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.ok) {
+              const details = await response.json();
+              lastOpenedId.current = id;
+              handleView({ 
+                id: details.id, 
+                name: details.name, 
+                extension: details.extension,
+                can_edit: details.can_edit,
+                document_type: details.document_type,
+                itemType: 'file' 
+              });
+            }
+          } catch (error) {
+            console.error('Erro ao buscar documento para visualização:', error);
+          }
+        }
+      }
+    };
+
+    openDocument();
+  }, [id, documents]);
 
   const navigateToFolder = (folder: Folder | null) => {
     if (!folder) {
@@ -701,6 +752,9 @@ export default function Documents() {
     setActionLoading(true);
     const token = localStorage.getItem('token');
 
+    let hasSuccess = false;
+    let anyError = false;
+
     for (const fileItem of selectedFiles) {
       if (fileItem.status === 'completed') continue;
 
@@ -746,37 +800,36 @@ export default function Documents() {
         clearInterval(progressInterval);
 
         if (response.ok) {
+          hasSuccess = true;
           setSelectedFiles(prev => prev.map(f => 
             f.id === fileItem.id ? { ...f, status: 'completed', progress: 100 } : f
           ));
         } else {
+          anyError = true;
           setSelectedFiles(prev => prev.map(f => 
             f.id === fileItem.id ? { ...f, status: 'error', progress: 0 } : f
           ));
         }
-      } catch {
+      } catch (error) {
+        anyError = true;
+        console.error("Erro no upload:", error);
         setSelectedFiles(prev => prev.map(f => 
           f.id === fileItem.id ? { ...f, status: 'error', progress: 0 } : f
         ));
       }
     }
 
-    // Verificar se pelo menos um arquivo foi concluído com sucesso
-    const hasSuccess = selectedFiles.some(f => f.status === 'completed');
-    const allFinished = selectedFiles.every(f => f.status === 'completed' || f.status === 'error');
-    
-    if (allFinished) {
-      if (hasSuccess) {
-        toast.success("Upload concluído com sucesso!");
-        setIsUploadOpen(false);
-        setSelectedFiles([]);
-        setSelectedSectorId('');
-        setSelectedDocumentTypeId('');
-        fetchData(); // Atualiza a lista de arquivos
-      } else {
-        toast.error("Falha ao realizar o upload dos arquivos.");
-      }
+    if (hasSuccess) {
+      toast.success("Upload concluído com sucesso!");
+      setIsUploadOpen(false);
+      setSelectedFiles([]);
+      setSelectedSectorId('');
+      setSelectedDocumentTypeId('');
+      fetchData(); // Atualiza a lista de arquivos
+    } else if (anyError) {
+      toast.error("Falha ao realizar o upload dos arquivos.");
     }
+    
     setActionLoading(false);
   };
 
@@ -785,7 +838,7 @@ export default function Documents() {
     return (item.tags || []).some(tag => (tag?.name || '').toLowerCase() === 'confidencial');
   };
 
-  const openConfidentialPrompt = (item: Item, action: 'view' | 'download') => {
+  const openConfidentialPrompt = (item: Item, action: 'view' | 'download' | 'download_original') => {
     setConfidentialItem(item);
     setConfidentialAction(action);
     setConfidentialPassword('');
@@ -817,6 +870,12 @@ export default function Documents() {
       if (fileResponse.ok) {
         const details = detailsResponse.ok ? await detailsResponse.json() : {};
         const blob = await fileResponse.blob();
+        
+        if (blob.size === 0) {
+          toast.error("O arquivo está vazio.");
+          return;
+        }
+
         const url = window.URL.createObjectURL(blob);
         
         // Em vez de abrir nova aba, abrir o visualizador interno
@@ -831,7 +890,7 @@ export default function Documents() {
         });
       } else if (fileResponse.status === 401) {
         toast.error("Senha necessária ou incorreta.");
-      } else if (response.status === 409) {
+      } else if (fileResponse.status === 409) {
         toast.error("Senha confidencial não configurada.");
       } else {
         toast.error("Erro ao visualizar arquivo.");
@@ -992,15 +1051,20 @@ export default function Documents() {
   };
 
   const getFileIcon = (type: string, extension?: string) => {
-    if (type === 'folder') return { icon: Folder, color: 'text-slate-700', bg: 'bg-slate-100' };
+    if (type === 'folder') return { 
+      icon: Folder, 
+      openIcon: FolderOpen, 
+      color: 'text-slate-400', 
+      bg: 'bg-white' 
+    };
     
     const ext = extension?.toLowerCase().replace('.', '');
     switch (ext) {
-      case 'pdf': return { icon: FileText, color: 'text-rose-700', bg: 'bg-rose-100/50' };
-      case 'xlsx': case 'xls': case 'csv': return { icon: FileSpreadsheet, color: 'text-emerald-700', bg: 'bg-emerald-100/50' };
-      case 'jpg': case 'jpeg': case 'png': case 'gif': return { icon: FileImage, color: 'text-indigo-700', bg: 'bg-indigo-100/50' };
-      case 'doc': case 'docx': return { icon: FileText, color: 'text-blue-700', bg: 'bg-blue-100/50' };
-      default: return { icon: FileText, color: 'text-slate-600', bg: 'bg-slate-100/50' };
+      case 'pdf': return { icon: FileText, color: 'text-rose-600', bg: 'bg-rose-50/50' };
+      case 'xlsx': case 'xls': case 'csv': return { icon: FileSpreadsheet, color: 'text-emerald-600', bg: 'bg-emerald-50/50' };
+      case 'jpg': case 'jpeg': case 'png': case 'gif': return { icon: FileImage, color: 'text-blue-600', bg: 'bg-blue-50/50' };
+      case 'doc': case 'docx': return { icon: FileText, color: 'text-indigo-600', bg: 'bg-indigo-50/50' };
+      default: return { icon: FileText, color: 'text-slate-500', bg: 'bg-slate-50/50' };
     }
   };
 
@@ -1018,10 +1082,74 @@ export default function Documents() {
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric'
     });
+  };
+
+  const handleDragStart = (e: React.DragEvent, item: Item) => {
+    if (item.itemType === 'file') {
+      setDraggedItem(item);
+      e.dataTransfer.setData('itemId', item.id);
+      e.dataTransfer.effectAllowed = 'move';
+      
+      // Criar um ghost image customizado ou apenas deixar o padrão
+      const dragIcon = document.createElement('div');
+      dragIcon.className = 'bg-primary text-white px-3 py-1 rounded-full text-xs font-bold shadow-xl';
+      dragIcon.innerText = item.name;
+      dragIcon.style.position = 'absolute';
+      dragIcon.style.top = '-1000px';
+      document.body.appendChild(dragIcon);
+      e.dataTransfer.setDragImage(dragIcon, 0, 0);
+      setTimeout(() => document.body.removeChild(dragIcon), 0);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, folder: Item) => {
+    if (folder.itemType === 'folder' && draggedItem && draggedItem.id !== folder.id) {
+      e.preventDefault();
+      setDragOverFolderId(folder.id);
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverFolderId(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetFolder: Item) => {
+    e.preventDefault();
+    setDragOverFolderId(null);
+    
+    if (!draggedItem || targetFolder.itemType !== 'folder') return;
+    
+    const itemId = draggedItem.id;
+    const targetFolderId = targetFolder.id;
+    
+    setDraggedItem(null);
+    
+    const toastId = toast.loading(`Movendo ${draggedItem.name}...`);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/documents/${itemId}/move`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ folder_id: targetFolderId })
+      });
+      
+      if (response.ok) {
+        toast.success('Documento movido com sucesso!', { id: toastId });
+        fetchData();
+      } else {
+        const errorText = await response.text();
+        toast.error(`Erro ao mover: ${errorText}`, { id: toastId });
+      }
+    } catch {
+      toast.error('Erro de conexão ao mover documento.', { id: toastId });
+    }
   };
 
   const filteredItems: Item[] = searchQuery 
@@ -1032,12 +1160,15 @@ export default function Documents() {
   const DocumentCard = ({ item, idx }: { item: Item, idx: number }) => {
     const iconData = getFileIcon(item.itemType, item.itemType === 'file' ? item.extension : undefined);
     const Icon = iconData.icon;
+    const [isHovered, setIsHovered] = useState(false);
     
     return (
       <Card 
         key={item.id || idx}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         className={cn(
-          "group border-slate-100 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5 transition-all cursor-pointer rounded-xl overflow-hidden",
+          "group border-border hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5 transition-all cursor-pointer rounded-xl overflow-hidden",
           item.itemType === 'folder' ? "bg-white" : "bg-white"
         )}
         onClick={() => item.itemType === 'folder' ? navigateToFolder(item) : handleView(item)}
@@ -1047,17 +1178,45 @@ export default function Documents() {
             <div className="w-full flex justify-between items-start mb-1">
               <div 
                 className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border",
-                  item.itemType === 'folder' ? "bg-slate-50 text-slate-600" : iconData.bg + " " + iconData.color,
-                  "border-slate-100"
+                  "w-12 h-12 flex items-center justify-center transition-all duration-300",
+                  item.itemType === 'folder' ? "text-slate-600" : iconData.color,
+                  "group-hover:scale-110"
                 )}
                 style={item.itemType === 'folder' ? {
-                  backgroundColor: `${item.color || '#64748b'}15`,
-                  color: item.color || '#64748b',
-                  borderColor: `${item.color || '#64748b'}30`
+                  color: item.color === 'primary' ? 'var(--color-primary)' : item.color === 'accent' ? 'var(--color-accent)' : item.color || '#64748b'
                 } : {}}
               >
-                <Icon className="h-5 w-5" style={item.itemType === 'folder' ? { fill: `${item.color || '#64748b'}30` } : {}} />
+                {item.itemType === 'folder' ? (
+                  <div className="relative flex items-center justify-center w-full h-full">
+                    {isHovered ? (
+                      <FolderOpen 
+                        className="h-9 w-9 transition-all duration-300" 
+                        style={{ 
+                          fill: '#cbd5e1', // Slate 300
+                          stroke: 'none'
+                        }} 
+                      />
+                    ) : (
+                      <Folder 
+                        className="h-9 w-9 transition-all duration-300" 
+                        style={{ 
+                          fill: '#cbd5e1', // Slate 300
+                          stroke: 'none'
+                        }} 
+                      />
+                    )}
+                    {/* Filhete Horizontal com a cor da pasta */}
+                    <div 
+                      className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-1.5 rounded-full transition-all duration-300 group-hover:w-7 group-hover:h-2"
+                      style={{ 
+                        backgroundColor: item.color === 'primary' ? 'var(--color-primary)' : item.color === 'accent' ? 'var(--color-accent)' : item.color || '#64748b',
+                        boxShadow: `0 2px 4px ${item.color === 'primary' ? 'var(--color-primary-30)' : item.color === 'accent' ? 'var(--color-accent-30)' : (item.color || '#64748b') + '30'}`
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <Icon className="h-8 w-8" />
+                )}
               </div>
 
               <DropdownMenu>
@@ -1066,8 +1225,8 @@ export default function Documents() {
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-slate-100 bg-white animate-in fade-in zoom-in-95 duration-200">
-                  <div className="px-2 py-1.5 mb-1 border-b border-slate-50">
+                <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-border bg-white animate-in fade-in zoom-in-95 duration-200">
+                  <div className="px-2 py-1.5 mb-1 border-b border-border">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Opções</p>
                   </div>
 
@@ -1125,8 +1284,12 @@ export default function Documents() {
                     </>
                   ) : (
                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigateToFolder(item); }} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer group">
-                      <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                        <Folder className="h-4 w-4 text-blue-500" />
+                      <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors relative overflow-hidden">
+                        <Folder 
+                          className="h-4 w-4 text-blue-500 transition-all duration-300 group-hover:scale-110" 
+                          style={{ fill: 'currentColor', stroke: 'none' }}
+                        />
+                        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-2.5 h-0.5 rounded-full bg-blue-400 opacity-50 group-hover:opacity-100 transition-opacity" />
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-bold">Abrir Pasta</span>
@@ -1142,7 +1305,7 @@ export default function Documents() {
                         setSelectedItemForShare(item);
                         setIsShareModalOpen(true);
                       }}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-[#1a355b] hover:bg-blue-50 transition-all cursor-pointer group"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-primary hover:bg-blue-50 transition-all cursor-pointer group"
                     >
                       <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                         <Share2 className="h-4 w-4 text-blue-500" />
@@ -1211,13 +1374,13 @@ export default function Documents() {
 
             <div className="w-full space-y-1">
               <div className="flex flex-col items-center gap-1">
-                <p className="font-bold text-slate-700 text-[13px] truncate group-hover:text-[#1a355b] transition-colors px-1 w-full">
+                <p className="font-bold text-slate-700 text-[13px] truncate group-hover:text-primary transition-colors px-1 w-full">
                   {item.name}
                 </p>
                 {item.itemType === 'file' && (
                   <div className="flex items-center gap-1">
                     {item.document_type && (
-                      <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-slate-100">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-border">
                         {item.document_type}
                       </span>
                     )}
@@ -1270,7 +1433,7 @@ export default function Documents() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a355b]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -1283,7 +1446,7 @@ export default function Documents() {
           <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             <div 
               onClick={() => navigateToFolder(null)}
-              className="flex items-center gap-1.5 hover:text-[#1a355b] cursor-pointer transition-colors group"
+              className="flex items-center gap-1.5 hover:text-primary cursor-pointer transition-colors group"
             >
               <Home className="h-3 w-3 group-hover:scale-110 transition-transform" />
               <span>Meu Drive</span>
@@ -1294,8 +1457,8 @@ export default function Documents() {
                 <span 
                   onClick={() => navigateToFolder(crumb)}
                   className={cn(
-                    "hover:text-[#1a355b] cursor-pointer transition-colors",
-                    idx === breadcrumbs.length - 1 && "text-[#1a355b] bg-blue-50 px-2 py-0.5 rounded-full"
+                    "hover:text-primary cursor-pointer transition-colors",
+                    idx === breadcrumbs.length - 1 && "text-primary bg-blue-50 px-2 py-0.5 rounded-full"
                   )}
                 >
                   {crumb.name}
@@ -1305,7 +1468,7 @@ export default function Documents() {
             {breadcrumbs.length === 0 && (
               <>
                 <ChevronRight className="h-3 w-3 text-slate-300" />
-                <span className="text-[#1a355b] bg-blue-50 px-2 py-0.5 rounded-full">Raiz</span>
+                <span className="text-primary bg-blue-50 px-2 py-0.5 rounded-full">Raiz</span>
               </>
             )}
           </div>
@@ -1315,7 +1478,7 @@ export default function Documents() {
                 variant="ghost" 
                 size="icon" 
                 onClick={navigateBack}
-                className="h-10 w-10 rounded-xl text-slate-400 hover:text-[#1a355b] hover:bg-blue-50 transition-all border border-slate-100"
+                className="h-10 w-10 rounded-xl text-slate-400 hover:text-primary hover:bg-blue-50 transition-all border border-border"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -1339,7 +1502,7 @@ export default function Documents() {
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                className="h-10 px-4 border-slate-200 text-slate-600 text-sm font-bold rounded-xl flex items-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+                className="h-10 px-4 border-border text-slate-600 text-sm font-bold rounded-xl flex items-center gap-2 hover:bg-slate-50 hover:border-border transition-all shadow-sm"
               >
                 <Filter className="h-4 w-4" />
                 <span className="hidden sm:inline">Filtrar</span>
@@ -1348,7 +1511,7 @@ export default function Documents() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 p-4 rounded-2xl border-slate-100 shadow-xl bg-white animate-in fade-in zoom-in-95 duration-200">
+            <DropdownMenuContent align="end" className="w-64 p-4 rounded-2xl border-border shadow-xl bg-white animate-in fade-in zoom-in-95 duration-200">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Setor</Label>
@@ -1356,7 +1519,7 @@ export default function Documents() {
                     <select 
                       value={selectedFilterSectorId}
                       onChange={(e) => setSelectedFilterSectorId(e.target.value)}
-                      className="w-full h-10 pl-4 pr-10 border border-slate-200 text-slate-600 text-sm font-bold rounded-xl bg-white hover:bg-slate-50 hover:border-slate-300 transition-all appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/30"
+                      className="w-full h-10 pl-4 pr-10 border border-border text-slate-600 text-sm font-bold rounded-xl bg-white hover:bg-slate-50 hover:border-border transition-all appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/30"
                     >
                       <option value="all">Todos os Setores</option>
                       {sectors.map(sector => (
@@ -1375,7 +1538,7 @@ export default function Documents() {
                     <select 
                       value={selectedFilterTagId}
                       onChange={(e) => setSelectedFilterTagId(e.target.value)}
-                      className="w-full h-10 pl-4 pr-10 border border-slate-200 text-slate-600 text-sm font-bold rounded-xl bg-white hover:bg-slate-50 hover:border-slate-300 transition-all appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/30"
+                      className="w-full h-10 pl-4 pr-10 border border-border text-slate-600 text-sm font-bold rounded-xl bg-white hover:bg-slate-50 hover:border-border transition-all appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/30"
                     >
                       <option value="all">Todas as Etiquetas</option>
                       {allTags.map(tag => (
@@ -1409,15 +1572,15 @@ export default function Documents() {
               <Button 
                 variant="outline"
                 onClick={() => setIsUploadOpen(true)}
-                className="h-10 px-4 border-slate-200 text-slate-600 text-sm font-bold rounded-xl hidden lg:flex items-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+                className="h-10 px-4 border-border text-slate-600 text-sm font-bold rounded-xl hidden lg:flex items-center gap-2 hover:bg-slate-50 hover:border-border transition-all shadow-sm"
               >
-                <Upload className="h-4 w-4" />
+                <LucideUpload className="h-4 w-4" />
                 <span>Fazer Upload</span>
               </Button>
 
               <Button 
                 onClick={() => setIsCreateFolderOpen(true)}
-                className="bg-[#1a355b] hover:bg-[#10213d] text-white text-sm font-bold px-5 h-10 rounded-xl hidden lg:flex items-center gap-2 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
+                className="bg-primary hover:bg-primary/90 text-white text-sm font-bold px-5 h-10 rounded-xl hidden lg:flex items-center gap-2 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
               >
                 <Plus className="h-4.5 w-4.5" />
                 <span>Nova Pasta</span>
@@ -1437,12 +1600,12 @@ export default function Documents() {
             placeholder="Pesquisar arquivos ou pastas..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-14 h-10 bg-white border-slate-100 rounded-xl text-sm font-medium focus-visible:ring-4 focus-visible:ring-blue-500/5 focus:border-blue-500/30 placeholder:text-slate-400 shadow-sm transition-all"
+            className="pl-14 h-10 bg-white border-border rounded-xl text-sm font-medium focus-visible:ring-4 focus-visible:ring-blue-500/5 focus:border-blue-500/30 placeholder:text-slate-400 shadow-sm transition-all"
           />
         </div>
 
         {stats && (
-          <div className="flex items-center gap-6 px-6 py-2.5 bg-white rounded-xl shadow-sm border border-slate-100/50">
+          <div className="flex items-center gap-6 px-6 py-2.5 bg-white rounded-xl shadow-sm border border-border/50">
             <div className="flex flex-col">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Arquivos</span>
               <div className="flex items-baseline gap-1">
@@ -1468,12 +1631,24 @@ export default function Documents() {
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <Folder className="h-3.5 w-3.5 text-blue-500" />
+            <div className="relative flex items-center justify-center w-3.5 h-3.5">
+              <Folder 
+                className="h-3.5 w-3.5 transition-all duration-300" 
+                style={{ 
+                  fill: '#cbd5e1', 
+                  stroke: 'none'
+                }} 
+              />
+              <div 
+                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-2 h-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              />
+            </div>
             {searchQuery ? 'Resultados da Pesquisa' : 'Arquivos e Pastas'}
           </h3>
         </div>
         
-        <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden border border-slate-100/50">
+        <Card className="border-none shadow-sm bg-white rounded-xl overflow-hidden border border-border/50">
           <CardContent className="p-0">
             {filteredItems.length === 0 ? (
               <div className="py-16 text-center">
@@ -1489,7 +1664,7 @@ export default function Documents() {
                 {searchQuery && (
                   <Button 
                     variant="outline" 
-                    className="mt-6 text-[#1a355b] font-bold border-blue-100 hover:bg-blue-50 rounded-xl h-9 px-6 text-xs"
+                    className="mt-6 text-primary font-bold border-blue-100 hover:bg-blue-50 rounded-xl h-9 px-6 text-xs"
                     onClick={() => setSearchQuery('')}
                   >
                     Limpar pesquisa
@@ -1501,12 +1676,12 @@ export default function Documents() {
                 {/* Desktop View (Table) */}
                 <div className="hidden md:block overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-slate-50/50">
-                      <TableRow className="hover:bg-transparent border-slate-100 h-11">
-                        <TableHead className="w-[45%] pl-6 text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">Nome</TableHead>
-                        <TableHead className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">Data de Modificação</TableHead>
-                        <TableHead className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">Tamanho</TableHead>
-                        <TableHead className="w-[150px] pr-6 text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] text-right">Ações</TableHead>
+                    <TableHeader className="bg-slate-50/40">
+                      <TableRow className="hover:bg-transparent border-border/30 h-8">
+                        <TableHead className="w-[45%] pl-6 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Nome</TableHead>
+                        <TableHead className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Data de Modificação</TableHead>
+                        <TableHead className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamanho</TableHead>
+                        <TableHead className="w-[120px] pr-6 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1523,92 +1698,120 @@ export default function Documents() {
                         return (
                           <TableRow 
                             key={item.id || idx} 
+                            draggable={item.itemType === 'file'}
+                            onDragStart={(e) => handleDragStart(e, item)}
+                            onDragOver={(e) => handleDragOver(e, item)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, item)}
                             className={cn(
-                              "group border-slate-50 hover:bg-slate-50/80 transition-all h-16",
-                              item.itemType === 'folder' && "cursor-pointer"
+                              "group border-border/30 hover:bg-slate-50/50 transition-all duration-200 h-11",
+                              item.itemType === 'folder' && "cursor-pointer",
+                              dragOverFolderId === item.id && "bg-blue-50/80 ring-2 ring-primary/20 ring-inset"
                             )}
                             onClick={() => item.itemType === 'folder' && navigateToFolder(item)}
                           >
-                            <TableCell className="pl-6 py-4">
-                              <div className="flex items-center gap-4">
+                            <TableCell className="pl-6 py-1">
+                              <div className="flex items-center gap-3">
                                 <div className="relative">
                                   <div 
                                     className={cn(
-                                      "w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-300",
-                                      item.itemType === 'folder' ? "bg-slate-100/90 text-slate-700" : iconData.bg + " " + iconData.color,
-                                      "shadow-[0_2px_12px_-2px_rgba(0,0,0,0.1)] border border-slate-200/80"
+                                      "w-8 h-8 flex items-center justify-center transition-all duration-300",
+                                      item.itemType === 'folder' ? "text-slate-700" : iconData.color,
+                                      "group-hover:scale-105",
+                                      dragOverFolderId === item.id && "scale-110 ring-4 ring-primary/10 rounded-2xl bg-white shadow-xl"
                                     )}
                                     style={item.itemType === 'folder' ? {
-                                      backgroundColor: `${item.color || '#64748b'}18`,
-                                      color: item.color || '#64748b',
-                                      borderColor: `${item.color || '#64748b'}40`
+                                      color: item.color === 'primary' ? 'var(--color-primary)' : item.color === 'accent' ? 'var(--color-accent)' : item.color || '#64748b'
                                     } : {}}
                                   >
-                                    <Icon className="h-5.5 w-5.5" style={item.itemType === 'folder' ? { fill: `${item.color || '#64748b'}40` } : {}} />
+                                    {item.itemType === 'folder' ? (
+                                      <div className="relative flex items-center justify-center w-full h-full">
+                                        <Folder 
+                                          className={cn("h-5 w-5 transition-all duration-300", dragOverFolderId === item.id ? "opacity-0 scale-0" : "group-hover:opacity-0 group-hover:scale-0")} 
+                                          style={{ 
+                                            fill: '#cbd5e1', // Slate 300 - Cor neutra para a pasta
+                                            stroke: 'none'
+                                          }} 
+                                        />
+                                        {(iconData.openIcon || dragOverFolderId === item.id) && (
+                                          <FolderOpen 
+                                            className={cn(
+                                              "h-5 w-5 absolute transition-all duration-300", 
+                                              dragOverFolderId === item.id ? "opacity-100 scale-105" : "opacity-0 scale-0 group-hover:opacity-100 group-hover:scale-105"
+                                            )} 
+                                            style={{ 
+                                              fill: '#cbd5e1', // Slate 300
+                                              stroke: 'none'
+                                            }} 
+                                          />
+                                        )}
+                                        {/* Filhete Horizontal com a cor da pasta */}
+                                        <div 
+                                          className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-3.5 h-0.5 rounded-full transition-all duration-300 group-hover:w-4.5 group-hover:h-1"
+                                          style={{ 
+                                            backgroundColor: item.color === 'primary' ? 'var(--color-primary)' : item.color === 'accent' ? 'var(--color-accent)' : item.color || '#64748b',
+                                            boxShadow: `0 1px 2px ${item.color === 'primary' ? 'var(--color-primary-30)' : item.color === 'accent' ? 'var(--color-accent-30)' : (item.color || '#64748b') + '30'}`
+                                          }}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <Icon className="h-5 w-5" />
+                                    )}
                                   </div>
                                 </div>
                                 <div className="min-w-0 flex flex-col gap-0.5">
                                   <div className="flex items-center gap-2">
-                                    <div className="font-semibold text-slate-700 text-[14px] group-hover:text-[#1a355b] transition-colors truncate max-w-[200px] sm:max-w-[350px] leading-tight">
+                                    <div className="font-semibold text-slate-900 text-[13px] group-hover:text-primary transition-colors truncate max-w-[300px] sm:max-w-[450px] leading-tight tracking-tight">
                                       {item.name}
                                     </div>
-                                    {item.itemType === 'file' && (
-                                      <div className="flex items-center gap-1.5">
-                                        {item.document_type && (
-                                          <span className="px-1.5 py-0.5 rounded bg-slate-100/50 text-slate-500 text-[9px] font-black uppercase tracking-widest border border-slate-200/50">
-                                            {item.document_type}
-                                          </span>
-                                        )}
-                                        {item.ocr_processed_at && (
-                                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100" title="Texto Extraído (OCR)">
-                                            <Type className="h-2.5 w-2.5" />
-                                            <span className="text-[9px] font-black uppercase tracking-tighter">OCR</span>
-                                          </div>
-                                        )}
+                                    {item.itemType === 'file' && item.ocr_processed_at && (
+                                      <div className="flex items-center gap-1 px-1 py-0.25 rounded bg-purple-50 text-purple-600 border border-purple-100/50" title="Texto Extraído (OCR)">
+                                        <Type className="h-2 w-2" />
+                                        <span className="text-[8px] font-bold uppercase tracking-wider">OCR</span>
                                       </div>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-[10px] font-bold text-slate-400/70 uppercase tracking-wider">
-                                      {item.sector_name || 'Geral'}
-                                    </span>
-                                    {item.tags && item.tags.length > 0 && (
-                                      <div className="flex flex-wrap gap-2 mt-1.5 ml-0.5">
+                                  <div className="flex items-center gap-2">
+                                    {item.tags && item.tags.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1">
                                         {item.tags.map((tag: Tag) => (
                                           <div 
                                             key={tag.id}
-                                            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-tight border transition-all relative group/tag shadow-sm hover:bg-white/10"
+                                            className="flex items-center gap-1 px-2 py-0.25 rounded-full text-[8px] font-bold uppercase tracking-wider border transition-all"
                                             style={{ 
-                                              backgroundColor: `${tag.color}25`, 
-                                              color: tag.color,
-                                              borderColor: `${tag.color}50`
+                                              backgroundColor: tag.color === 'primary' ? 'var(--color-primary-10)' : tag.color === 'accent' ? 'var(--color-accent-10)' : `${tag.color}10`, 
+                                              color: tag.color === 'primary' ? 'var(--color-primary)' : tag.color === 'accent' ? 'var(--color-accent)' : tag.color,
+                                              borderColor: tag.color === 'primary' ? 'var(--color-primary-20)' : tag.color === 'accent' ? 'var(--color-accent-20)' : `${tag.color}20`
                                             }}
                                           >
-                                            <TagIcon className="h-2.5 w-2.5 relative z-10" />
-                                            <span className="relative z-10">{tag.name}</span>
+                                            <span>{tag.name}</span>
                                           </div>
                                         ))}
                                       </div>
-                                    )}
+                                    ) : item.itemType === 'file' && item.document_type ? (
+                                      <span className="px-2 py-0.25 rounded-full bg-slate-50 text-slate-400 text-[8px] font-bold uppercase tracking-wider border border-slate-100">
+                                        {item.document_type}
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell>
-                              <span className="text-xs font-medium text-slate-500">
+                              <span className="text-[11px] font-semibold text-slate-500 tracking-tight">
                                 {formatDate(item.updated_at || item.created_at)}
                               </span>
                             </TableCell>
                             <TableCell>
-                              <span className="text-xs font-semibold text-slate-600">
+                              <span className="text-[11px] font-semibold text-slate-500 tracking-tight">
                                 {item.itemType === 'folder' 
-                                  ? formatSize(item.total_size || 0)
+                                  ? `${item.files_count || 0} arquivos`
                                   : formatSize(item.size)
                                 }
                               </span>
                             </TableCell>
                             <TableCell className="pr-6 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                              <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                 {item.itemType === 'file' && (
                                   <>
                                     <Button 
@@ -1620,7 +1823,7 @@ export default function Documents() {
                                       }}
                                       disabled={processingId === item.id}
                                       title="Visualizar"
-                                      className="h-8.5 w-8.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 shadow-sm hover:shadow-md"
+                                      className="h-7 w-7 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
                                     >
                                       {processingId === item.id ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1637,7 +1840,7 @@ export default function Documents() {
                                       }}
                                       disabled={processingId === item.id}
                                       title="Download"
-                                      className="h-8.5 w-8.5 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md"
+                                      className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all"
                                     >
                                       {processingId === item.id ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1654,12 +1857,12 @@ export default function Documents() {
                                       variant="ghost" 
                                       size="icon" 
                                       onClick={(e) => e.stopPropagation()}
-                                      className="h-8.5 w-8.5 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md"
+                                      className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all"
                                     >
                                       <MoreVertical className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+                                  <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-border animate-in fade-in zoom-in-95 duration-200">
                                     <div className="px-2 py-1.5 mb-1">
                                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ações Disponíveis</p>
                                     </div>
@@ -1672,7 +1875,7 @@ export default function Documents() {
                                             setSelectedItemForShare(item);
                                             setIsShareModalOpen(true);
                                           }}
-                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-[#1a355b] hover:bg-blue-50 transition-all cursor-pointer group"
+                                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-primary hover:bg-blue-50 transition-all cursor-pointer group"
                                         >
                                           <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                                             <Share2 className="h-4 w-4 text-blue-500" />
@@ -1824,14 +2027,14 @@ export default function Documents() {
         } else {
           setNewFolderName("");
           setSelectedSectorId("");
-          setNewFolderColor("#1a355b");
+          setNewFolderColor("primary");
         }
       }}>
         <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
-        <div className="p-8 border-b border-slate-100/80 relative">
+        <div className="p-8 border-b border-border/80 relative">
           <div className="flex items-center gap-3 mb-1">
             <div className="p-2 rounded-xl bg-blue-50">
-              <Folder className="h-6 w-6 text-[#1a355b] fill-[#1a355b]/10" />
+              <FolderClosed className="h-6 w-6 text-primary fill-primary/10" />
             </div>
             <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Nova Pasta</DialogTitle>
           </div>
@@ -1851,12 +2054,12 @@ export default function Documents() {
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   placeholder="Digite o nome da pasta..."
-                  className="h-12 pl-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm placeholder:text-slate-400"
+                  className="h-12 pl-4 rounded-xl border-border bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-semibold text-slate-900 text-sm placeholder:text-slate-400"
                   required
                 />
               </div>
               <div className="flex items-center gap-2 text-slate-500 text-[11px] font-medium ml-1">
-                <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[10px] font-bold">i</div>
+                <div className="w-4 h-4 rounded-full border border-border flex items-center justify-center text-[10px] font-bold">i</div>
                 O nome da pasta deve ser único neste diretório.
               </div>
             </div>
@@ -1871,14 +2074,14 @@ export default function Documents() {
                     id="folderSector"
                     value={selectedSectorId}
                     onChange={(e) => setSelectedSectorId(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
+                    className="w-full h-12 px-4 rounded-xl border-border bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
                   >
                     <option value="">Nenhum setor (Geral)</option>
                     {sectors.filter(s => s.can_edit).map(sector => (
                       <option key={sector.id} value={sector.id}>{sector.name}</option>
                     ))}
                   </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-[#1a355b] transition-colors">
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                     <ChevronDown className="h-4 w-4" />
                   </div>
                 </div>
@@ -1890,16 +2093,17 @@ export default function Documents() {
                 Cor da Pasta
               </Label>
               <div className="flex flex-wrap gap-2 px-1">
-                {['#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#64748b', '#22d3ee'].map(color => (
+                {['primary', 'accent', '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#22d3ee'].map(color => (
                   <button
                     key={color}
                     type="button"
                     onClick={() => setNewFolderColor(color)}
                     className={cn(
                       "w-8 h-8 rounded-xl transition-all hover:scale-110 active:scale-90 shadow-sm flex items-center justify-center",
-                      newFolderColor === color ? "ring-2 ring-[#1a355b] ring-offset-2 scale-110" : "opacity-70 hover:opacity-100"
+                      newFolderColor === color ? "ring-2 ring-primary ring-offset-2 scale-110" : "opacity-70 hover:opacity-100",
+                      color === 'primary' ? "bg-primary" : color === 'accent' ? "bg-accent" : ""
                     )}
-                    style={{ backgroundColor: color }}
+                    style={color !== 'primary' && color !== 'accent' ? { backgroundColor: color } : {}}
                   >
                     {newFolderColor === color && <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />}
                   </button>
@@ -1909,7 +2113,7 @@ export default function Documents() {
                     type="color" 
                     value={newFolderColor}
                     onChange={(e) => setNewFolderColor(e.target.value)}
-                    className="h-8 w-8 rounded-xl border border-slate-200 cursor-pointer p-0.5 bg-white hover:bg-slate-50 transition-all"
+                    className="h-8 w-8 rounded-xl border border-border cursor-pointer p-0.5 bg-white hover:bg-slate-50 transition-all"
                     title="Cor personalizada"
                   />
                 </div>
@@ -1918,8 +2122,8 @@ export default function Documents() {
 
             {currentFolder && (
               <div className="flex items-center gap-2 p-4 rounded-xl bg-blue-50 border border-blue-100 mb-2">
-                <div className="p-2 rounded-xl bg-blue-100 text-[#1a355b]">
-                  <Folder className="h-5 w-5" />
+                <div className="p-2 rounded-xl bg-blue-100 text-primary">
+                  <FolderClosed className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-xs font-bold text-blue-900">Subpasta de: {currentFolder.name}</p>
@@ -1943,7 +2147,7 @@ export default function Documents() {
                 className={cn(
                   "px-8 font-bold h-12 rounded-xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
                   newFolderName.trim() 
-                    ? "bg-[#1a355b] hover:bg-[#10213d] text-white shadow-blue-900/10" 
+                    ? "bg-primary hover:bg-primary/90 text-white shadow-blue-900/10" 
                     : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                 )}
               >
@@ -1961,302 +2165,470 @@ export default function Documents() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Fazer Upload */}
-      <Dialog open={isUploadOpen} onOpenChange={(open) => {
-        setIsUploadOpen(open);
-        if (open) {
-          // Se estivermos dentro de uma pasta, herdar o setor e a própria pasta
-          if (currentFolder) {
-            setSelectedSectorId(currentFolder.sector_id || "");
-            setSelectedFolderId(currentFolder.id);
-          }
-        } else {
-          setSelectedFiles([]);
-          setSelectedSectorId('');
-          // Se estivermos navegando em uma pasta, manter o selectedFolderId para a listagem
-          // mas resetar se fecharmos o modal e não estivermos navegando? 
-          // Na verdade, o selectedFolderId controla a listagem, então se estivermos navegando,
-          // ele deve permanecer. Se não estivermos navegando (breadcrumbs vazios), aí sim limpamos.
-          if (!currentFolder) {
-            setSelectedFolderId('');
-          }
-        }
-      }}>
-        <DialogContent className="w-[95vw] sm:max-w-[600px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-8 border-b border-slate-100/80">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-blue-50">
-                  <CloudUpload className="h-6 w-6 text-[#1a355b]" />
-                </div>
-                <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Upload</DialogTitle>
+      {/* Modal Fazer Upload - Versão Desktop (Corporate) */}
+      {isDesktop && (
+        <AntModal
+          open={isUploadOpen}
+          onCancel={() => setIsUploadOpen(false)}
+          title={
+            <div className="flex items-center gap-3 py-2">
+              <div className="p-2 rounded-lg bg-blue-50">
+                <CloudUpload className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <Title level={4} style={{ margin: 0 }}>Upload de Documentos</Title>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Adicione novos arquivos ao sistema de forma organizada</Text>
               </div>
             </div>
-            <DialogDescription className="text-slate-500 text-sm font-medium">
-              Adicione seus arquivos ao sistema de forma segura.
-            </DialogDescription>
-          </div>
-
-          <div className="p-6 sm:p-8 space-y-6 bg-white overflow-y-auto max-h-[70vh] custom-scrollbar">
-            {/* Seleção de Setor, Pasta e Tipo de Documento */}
+          }
+          footer={[
+            <Button 
+              key="cancel"
+              variant="ghost" 
+              onClick={() => setIsUploadOpen(false)}
+              className="px-6 font-bold text-slate-500"
+            >
+              Cancelar
+            </Button>,
+            <Button 
+              key="submit"
+              onClick={handleUpload}
+              disabled={actionLoading || selectedFiles.length === 0 || selectedFiles.every(f => f.status === 'completed')}
+              className={cn(
+                "px-8 font-bold h-10 rounded-lg shadow-lg transition-all flex items-center gap-2",
+                selectedFiles.length > 0 && !selectedFiles.every(f => f.status === 'completed')
+                  ? "bg-primary hover:bg-primary/90 text-white" 
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              )}
+            >
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LucideUpload className="h-4 w-4" />}
+              <span>{actionLoading ? 'Enviando...' : 'Iniciar Upload'}</span>
+            </Button>
+          ]}
+          width={700}
+          centered
+          className="corporate-modal"
+          styles={{
+            body: { padding: '24px' },
+            header: { borderBottom: '1px solid #f0f0f0', paddingBottom: '16px' }
+          }}
+        >
+          <div className="space-y-6">
             {!currentFolder && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <Label htmlFor="uploadSector" className="text-sm font-bold text-slate-700 ml-1">
-                    Vincular ao Setor
-                  </Label>
-                  <div className="relative group">
-                    <select 
-                      id="uploadSector"
-                      value={selectedSectorId}
-                      onChange={(e) => setSelectedSectorId(e.target.value)}
-                      className="w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
-                    >
-                      <option value="">Nenhum setor (Geral)</option>
-                      {sectors.filter(s => s.can_edit).map(sector => (
-                        <option key={sector.id} value={sector.id}>{sector.name}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-[#1a355b] transition-colors">
-                      <ChevronDown className="h-4 w-4" />
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Text strong className="text-xs text-slate-500 uppercase tracking-wider">Setor de Destino</Text>
+                  <AntSelect
+                    className="w-full"
+                    placeholder="Selecione o setor"
+                    value={selectedSectorId || undefined}
+                    onChange={(value) => setSelectedSectorId(value)}
+                    options={[
+                      { value: '', label: 'Nenhum setor (Geral)' },
+                      ...sectors.filter(s => s.can_edit).map(s => ({ value: s.id, label: s.name }))
+                    ]}
+                    size="large"
+                  />
                 </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="uploadFolder" className="text-sm font-bold text-slate-700 ml-1">
-                    Pasta de Destino
-                  </Label>
-                  <div className="relative group">
-                    <select 
-                      id="uploadFolder"
-                      value={selectedFolderId}
-                      onChange={(e) => setSelectedFolderId(e.target.value)}
-                      className="w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
-                    >
-                      <option value="">Raiz (Nenhuma pasta)</option>
-                      {folders.map(folder => (
-                        <option key={folder.id} value={folder.id}>{folder.name}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-[#1a355b] transition-colors">
-                      <ChevronDown className="h-4 w-4" />
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <Text strong className="text-xs text-slate-500 uppercase tracking-wider">Pasta de Destino</Text>
+                  <AntSelect
+                    className="w-full"
+                    placeholder="Selecione a pasta"
+                    value={selectedFolderId || undefined}
+                    onChange={(value) => setSelectedFolderId(value)}
+                    options={[
+                      { value: '', label: 'Raiz (Nenhuma pasta)' },
+                      ...folders.map(f => ({ value: f.id, label: f.name }))
+                    ]}
+                    size="large"
+                  />
                 </div>
               </div>
             )}
 
-            <div className="space-y-3">
-              <Label htmlFor="uploadDocumentType" className="text-sm font-bold text-slate-700 ml-1">
-                Tipo de Documento
-              </Label>
-              <div className="relative group">
-                <select 
-                  id="uploadDocumentType"
-                  value={selectedDocumentTypeId}
-                  onChange={(e) => setSelectedDocumentTypeId(e.target.value)}
-                  className="w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
-                >
-                  <option value="">Selecione o tipo de documento...</option>
-                  {documentTypes.map(type => (
-                    <option key={type.id} value={type.id}>{type.name}</option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-[#1a355b] transition-colors">
-                  <ChevronDown className="h-4 w-4" />
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Text strong className="text-xs text-slate-500 uppercase tracking-wider">Tipo de Documento</Text>
+              <AntSelect
+                className="w-full"
+                placeholder="Selecione o tipo de documento"
+                value={selectedDocumentTypeId || undefined}
+                onChange={(value) => setSelectedDocumentTypeId(value)}
+                options={documentTypes.map(t => ({ value: t.id, label: t.name }))}
+                size="large"
+                showSearch
+                optionFilterProp="label"
+              />
             </div>
 
             {currentFolder && (
-              <div className="flex items-center gap-2 p-4 rounded-xl bg-blue-50 border border-blue-100 mb-2">
-                <div className="p-2 rounded-xl bg-blue-100 text-[#1a355b]">
-                  <Folder className="h-5 w-5" />
-                </div>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-3">
+                <FolderClosed className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-xs font-bold text-blue-900">Destino: {currentFolder.name}</p>
-                  <p className="text-[10px] text-blue-700 font-medium">Os arquivos serão salvos nesta pasta e vinculados ao setor {currentFolder.sector_name || 'Geral'}.</p>
+                  <Text strong className="text-blue-900 block text-xs">Destino: {currentFolder.name}</Text>
+                  <Text type="secondary" className="text-[10px] text-blue-700">
+                    Setor: {currentFolder.sector_name || 'Geral'}
+                  </Text>
                 </div>
               </div>
             )}
 
-            <div 
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={handleSelectButtonClick}
-              className={cn(
-                "relative group flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-10 transition-all duration-300 cursor-pointer",
-                isDragging 
-                  ? "border-[#1a355b] bg-blue-50/50 scale-[0.99]" 
-                  : "border-slate-200 bg-slate-50/30 hover:bg-slate-50 hover:border-[#1a355b]/50",
-              )}
+            <Divider titlePlacement="start" style={{ margin: '12px 0' }}>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arquivos</Text>
+            </Divider>
+
+            <Dragger
+              multiple
+              showUploadList={false}
+              beforeUpload={(file) => {
+                const isLt25M = file.size / 1024 / 1024 < 25;
+                if (!isLt25M) {
+                  toast.error('O arquivo deve ser menor que 25MB!');
+                  return AntUpload.LIST_IGNORE;
+                }
+                appendSelectedFiles([file]);
+                return false;
+              }}
+              className="bg-slate-50/50 hover:bg-slate-50 border-2 border-dashed border-slate-200 hover:border-primary transition-all rounded-xl"
             >
-              <input
-                ref={fileInputRef}
-                id="file"
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              
-              <div className="flex flex-col items-center text-center z-10">
-                <div className={cn(
-                  "w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-all duration-300 shadow-sm",
-                  isDragging ? "bg-[#1a355b] text-white scale-110 shadow-blue-500/20" : "bg-blue-50 text-[#1a355b] group-hover:scale-105"
-                )}>
-                  <CloudUpload className="h-8 w-8" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900 mb-1">Arraste e solte arquivos aqui</h4>
-                <p className="text-sm text-slate-500 mb-6">ou clique para buscar no seu dispositivo</p>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-6">Formatos aceitos: PDF, DOCX, PNG (Máx. 25MB)</p>
-                
-                <Button 
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectButtonClick();
-                  }}
-                  className="bg-[#1a355b] hover:bg-[#10213d] text-white font-bold px-8 h-12 rounded-xl shadow-lg shadow-blue-500/10 transition-all active:scale-[0.97]"
-                >
-                  Selecionar Arquivos
-                </Button>
-              </div>
-            </div>
+              <p className="ant-upload-drag-icon">
+                <CloudUpload className="h-10 w-10 text-primary mx-auto mb-2 opacity-50" />
+              </p>
+              <p className="ant-upload-text font-bold text-slate-700">Clique ou arraste arquivos para esta área</p>
+              <p className="ant-upload-hint text-xs text-slate-400">
+                Suporte para PDF, DOCX, PNG (Máx. 25MB)
+              </p>
+            </Dragger>
 
             {selectedFiles.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                    ARQUIVOS SELECIONADOS ({selectedFiles.length})
-                  </h5>
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">
+                    Selecionados ({selectedFiles.length})
+                  </Text>
                 </div>
-                <div className="max-h-[220px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
                   {selectedFiles.map((item) => (
                     <div 
                       key={item.id} 
-                      className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all group"
+                      className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 bg-white shadow-sm hover:border-primary/30 transition-all group"
                     >
                       <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center",
-                        item.status === 'completed' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-[#1a355b]"
+                        "w-8 h-8 rounded-lg flex items-center justify-center",
+                        item.status === 'completed' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-primary"
                       )}>
-                        {item.status === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : <FileIcon className="h-5 w-5" />}
+                        {item.status === 'completed' ? <CheckCircle2 className="h-4 w-4" /> : <FileIcon className="h-4 w-4" />}
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm font-bold text-slate-900 truncate pr-4">{item.file.name}</p>
-                          {item.status === 'uploading' ? (
-                            <span className="text-[10px] font-bold text-[#1a355b] animate-pulse">Enviando...</span>
-                          ) : item.status === 'completed' ? (
-                            <span className="text-[10px] font-bold text-emerald-500 uppercase">Concluído</span>
-                          ) : item.status === 'error' ? (
-                            <span className="text-[10px] font-bold text-rose-500 uppercase">Erro</span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Pendente</span>
-                          )}
+                        <div className="flex items-center justify-between mb-0.5">
+                          <Text strong className="text-xs truncate">{item.file.name}</Text>
+                          <Text className="text-[10px] text-slate-400">{formatSize(item.file.size)}</Text>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{formatSize(item.file.size)}</p>
-                          {item.status === 'uploading' && (
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-[#1a355b] transition-all duration-300" 
-                                style={{ width: `${item.progress}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        {item.status !== 'uploading' && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => removeFile(item.id)}
-                            className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        {item.status === 'uploading' ? (
+                          <AntProgress percent={item.progress} size="small" status="active" />
+                        ) : item.status === 'completed' ? (
+                          <AntTag color="success" className="m-0 text-[9px] font-bold border-none uppercase">Concluído</AntTag>
+                        ) : item.status === 'error' ? (
+                          <AntTag color="error" className="m-0 text-[9px] font-bold border-none uppercase">Erro</AntTag>
+                        ) : (
+                          <AntTag color="default" className="m-0 text-[9px] font-bold border-none uppercase">Pendente</AntTag>
                         )}
                       </div>
+
+                      {item.status !== 'uploading' && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => removeFile(item.id)}
+                          className="h-7 w-7 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             )}
+          </div>
+        </AntModal>
+      )}
 
-            {!currentFolder && (
+      {/* Modal Fazer Upload - Versão Mobile (PWA) */}
+      {!isDesktop && (
+        <Dialog open={isUploadOpen} onOpenChange={(open) => {
+          setIsUploadOpen(open);
+          if (open) {
+            // Se estivermos dentro de uma pasta, herdar o setor e a própria pasta
+            if (currentFolder) {
+              setSelectedSectorId(currentFolder.sector_id || "");
+              setSelectedFolderId(currentFolder.id);
+            }
+          } else {
+            setSelectedFiles([]);
+            setSelectedSectorId('');
+            // Se estivermos navegando em uma pasta, manter o selectedFolderId para a listagem
+            // mas resetar se fecharmos o modal e não estivermos navegando? 
+            // Na verdade, o selectedFolderId controla a listagem, então se estivermos navegando,
+            // ele deve permanecer. Se não estivermos navegando (breadcrumbs vazios), aí sim limpamos.
+            if (!currentFolder) {
+              setSelectedFolderId('');
+            }
+          }
+        }}>
+          <DialogContent className="w-[95vw] sm:max-w-[600px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-border/80">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-blue-50">
+                    <CloudUpload className="h-6 w-6 text-primary" />
+                  </div>
+                  <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Upload</DialogTitle>
+                </div>
+              </div>
+              <DialogDescription className="text-slate-500 text-sm font-medium">
+                Adicione seus arquivos ao sistema de forma segura.
+              </DialogDescription>
+            </div>
+
+            <div className="p-6 sm:p-8 space-y-6 bg-white overflow-y-auto max-h-[70vh] custom-scrollbar">
+              {/* Seleção de Setor, Pasta e Tipo de Documento */}
+              {!currentFolder && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <Label htmlFor="uploadSector" className="text-sm font-bold text-slate-700 ml-1">
+                      Vincular ao Setor
+                    </Label>
+                    <div className="relative group">
+                      <select 
+                        id="uploadSector"
+                        value={selectedSectorId}
+                        onChange={(e) => setSelectedSectorId(e.target.value)}
+                        className="w-full h-12 px-4 rounded-xl border-border bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
+                      >
+                        <option value="">Nenhum setor (Geral)</option>
+                        {sectors.filter(s => s.can_edit).map(sector => (
+                          <option key={sector.id} value={sector.id}>{sector.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="uploadFolder" className="text-sm font-bold text-slate-700 ml-1">
+                      Pasta de Destino
+                    </Label>
+                    <div className="relative group">
+                      <select 
+                        id="uploadFolder"
+                        value={selectedFolderId}
+                        onChange={(e) => setSelectedFolderId(e.target.value)}
+                        className="w-full h-12 px-4 rounded-xl border-border bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
+                      >
+                        <option value="">Raiz (Nenhuma pasta)</option>
+                        {folders.map(folder => (
+                          <option key={folder.id} value={folder.id}>{folder.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-3">
-                <Label htmlFor="sector" className="text-sm font-bold text-slate-700 ml-1">
-                  Vincular ao Setor
+                <Label htmlFor="uploadDocumentType" className="text-sm font-bold text-slate-700 ml-1">
+                  Tipo de Documento
                 </Label>
                 <div className="relative group">
                   <select 
-                    id="sector"
-                    value={selectedSectorId}
-                    onChange={(e) => setSelectedSectorId(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
+                    id="uploadDocumentType"
+                    value={selectedDocumentTypeId}
+                    onChange={(e) => setSelectedDocumentTypeId(e.target.value)}
+                    className="w-full h-12 px-4 rounded-xl border-border bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-semibold text-slate-900 text-sm outline-none border appearance-none cursor-pointer"
                   >
-                    <option value="">Nenhum setor (Geral)</option>
-                    {sectors.map(sector => (
-                      <option key={sector.id} value={sector.id}>{sector.name}</option>
+                    <option value="">Selecione o tipo de documento...</option>
+                    {documentTypes.map(type => (
+                      <option key={type.id} value={type.id}>{type.name}</option>
                     ))}
                   </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-[#1a355b] transition-colors">
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
                     <ChevronDown className="h-4 w-4" />
                   </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="p-8 pt-0 flex items-center justify-end gap-3 bg-white">
-            <Button 
-              type="button" 
-              variant="ghost" 
-              onClick={() => setIsUploadOpen(false)}
-              className="px-6 font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 h-12 rounded-xl transition-all text-sm"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleUpload}
-              disabled={actionLoading || selectedFiles.length === 0 || selectedFiles.every(f => f.status === 'completed')}
-              className={cn(
-                "px-8 font-bold h-12 rounded-xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
-                selectedFiles.length > 0 && !selectedFiles.every(f => f.status === 'completed')
-                  ? "bg-[#1a355b] hover:bg-[#10213d] text-white shadow-blue-900/10" 
-                  : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+              {currentFolder && (
+                <div className="flex items-center gap-2 p-4 rounded-xl bg-blue-50 border border-blue-100 mb-2">
+                  <div className="p-2 rounded-xl bg-blue-100 text-primary">
+                    <FolderClosed className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-blue-900">Destino: {currentFolder.name}</p>
+                    <p className="text-[10px] text-blue-700 font-medium">Os arquivos serão salvos nesta pasta e vinculados ao setor {currentFolder.sector_name || 'Geral'}.</p>
+                  </div>
+                </div>
               )}
-            >
-              {actionLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Enviando...</span>
-                </>
-              ) : (
-                <>
-                  <span>Confirmar Envio</span>
-                  <Share2 className="h-4 w-4 rotate-90" />
-                </>
+
+              <div 
+                onDragOver={handleDragOverUpload}
+                onDragLeave={handleDragLeaveUpload}
+                onDrop={handleDropUpload}
+                onClick={handleSelectButtonClick}
+                className={cn(
+                  "relative group flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-10 transition-all duration-300 cursor-pointer",
+                  isDragging 
+                    ? "border-primary bg-blue-50/50 scale-[0.99]" 
+                    : "border-border bg-slate-50/30 hover:bg-slate-50 hover:border-primary/50",
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  id="file"
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                
+                <div className="flex flex-col items-center text-center z-10">
+                  <div className={cn(
+                    "w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-all duration-300 shadow-sm",
+                    isDragging ? "bg-primary text-white scale-110 shadow-blue-500/20" : "bg-blue-50 text-primary group-hover:scale-105"
+                  )}>
+                    <CloudUpload className="h-8 w-8" />
+                  </div>
+                  <h4 className="text-lg font-bold text-slate-900 mb-1">Arraste e solte arquivos aqui</h4>
+                  <p className="text-sm text-slate-500 mb-6">ou clique para buscar no seu dispositivo</p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-6">Formatos aceitos: PDF, DOCX, PNG (Máx. 25MB)</p>
+                  
+                  <Button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectButtonClick();
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-white font-bold px-8 h-12 rounded-xl shadow-lg shadow-blue-500/10 transition-all active:scale-[0.97]"
+                  >
+                    Selecionar Arquivos
+                  </Button>
+                </div>
+              </div>
+
+              {selectedFiles.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                      ARQUIVOS SELECIONADOS ({selectedFiles.length})
+                    </h5>
+                  </div>
+                  <div className="max-h-[220px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    {selectedFiles.map((item) => (
+                      <div 
+                        key={item.id} 
+                        className="flex items-center gap-4 p-4 rounded-xl border border-border bg-white shadow-sm hover:shadow-md transition-all group"
+                      >
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center",
+                          item.status === 'completed' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-primary"
+                        )}>
+                          {item.status === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : <FileIcon className="h-5 w-5" />}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-bold text-slate-900 truncate pr-4">{item.file.name}</p>
+                            {item.status === 'uploading' ? (
+                              <span className="text-[10px] font-bold text-primary animate-pulse">Enviando...</span>
+                            ) : item.status === 'completed' ? (
+                              <span className="text-[10px] font-bold text-emerald-500 uppercase">Concluído</span>
+                            ) : item.status === 'error' ? (
+                              <span className="text-[10px] font-bold text-rose-500 uppercase">Erro</span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">Pendente</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{formatSize(item.file.size)}</p>
+                            {item.status === 'uploading' && (
+                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-primary transition-all duration-300" 
+                                  style={{ width: `${item.progress}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {item.status !== 'uploading' && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => removeFile(item.id)}
+                              className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </div>
+
+            <div className="p-8 pt-0 flex items-center justify-end gap-3 bg-white">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={() => setIsUploadOpen(false)}
+                className="px-6 font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 h-12 rounded-xl transition-all text-sm"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleUpload}
+                disabled={actionLoading || selectedFiles.length === 0 || selectedFiles.every(f => f.status === 'completed')}
+                className={cn(
+                  "px-8 font-bold h-12 rounded-xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
+                  selectedFiles.length > 0 && !selectedFiles.every(f => f.status === 'completed')
+                    ? "bg-primary hover:bg-primary/90 text-white shadow-blue-900/10" 
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                )}
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Enviando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Confirmar Envio</span>
+                    <Share2 className="h-4 w-4 rotate-90" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Modal Gerenciar Etiquetas */}
       <Dialog open={isTagsModalOpen} onOpenChange={setIsTagsModalOpen}>
         <DialogContent className="w-[95vw] sm:max-w-[450px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-8 border-b border-slate-100/80 relative">
+          <div className="p-8 border-b border-border/80 relative">
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2 rounded-xl bg-blue-50">
-                <TagIcon className="h-6 w-6 text-[#1a355b]" />
+                <TagIcon className="h-6 w-6 text-primary" />
               </div>
               <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Etiquetas</DialogTitle>
             </div>
@@ -2267,7 +2639,7 @@ export default function Documents() {
 
           <div className="p-6 sm:p-8 space-y-6">
             {/* Criar Nova Etiqueta */}
-            <div className="space-y-4 p-5 rounded-xl bg-slate-50/50 border border-slate-100">
+            <div className="space-y-4 p-5 rounded-xl bg-slate-50/50 border border-border">
               <Label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Criar Nova Etiqueta</Label>
               <div className="flex gap-2">
                 <div className="relative flex-1 group">
@@ -2275,7 +2647,7 @@ export default function Documents() {
                     value={newTagName}
                     onChange={(e) => setNewTagName(e.target.value)}
                     placeholder="Nome da etiqueta..."
-                    className="h-11 rounded-xl border-slate-200 bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500/30 transition-all font-medium text-sm"
+                    className="h-11 rounded-xl border-border bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500/30 transition-all font-medium text-sm"
                   />
                 </div>
                 <div className="relative">
@@ -2283,7 +2655,7 @@ export default function Documents() {
                     type="color" 
                     value={newTagColor}
                     onChange={(e) => setNewTagColor(e.target.value)}
-                    className="h-11 w-11 rounded-xl border border-slate-200 cursor-pointer p-1 bg-white hover:bg-slate-50 transition-all"
+                    className="h-11 w-11 rounded-xl border border-border cursor-pointer p-1 bg-white hover:bg-slate-50 transition-all"
                   />
                 </div>
                 <Button 
@@ -2292,7 +2664,7 @@ export default function Documents() {
                   size="icon" 
                   className={cn(
                     "h-11 w-11 rounded-xl transition-all shadow-lg active:scale-95",
-                    newTagName.trim() ? "bg-[#1a355b] hover:bg-[#10213d] shadow-blue-500/20" : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    newTagName.trim() ? "bg-primary text-white hover:bg-primary/90 shadow-blue-500/20" : "bg-slate-200 text-slate-400 cursor-not-allowed"
                   )}
                 >
                   <Plus className="h-5 w-5" />
@@ -2301,16 +2673,17 @@ export default function Documents() {
 
               {/* Sugestões de Cores */}
               <div className="flex flex-wrap gap-2 mt-2 px-1">
-                {['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#e66a31'].map(color => (
+                {['primary', 'accent', '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'].map(color => (
                   <button
                     key={color}
                     type="button"
                     onClick={() => setNewTagColor(color)}
                     className={cn(
                       "w-6 h-6 rounded-full transition-all hover:scale-125 active:scale-90 shadow-sm",
-                      newTagColor === color ? "ring-2 ring-blue-500 ring-offset-2 scale-110" : ""
+                      newTagColor === color ? "ring-2 ring-primary ring-offset-2 scale-110" : "",
+                      color === 'primary' ? "bg-primary" : color === 'accent' ? "bg-accent" : ""
                     )}
-                    style={{ backgroundColor: color }}
+                    style={color !== 'primary' && color !== 'accent' ? { backgroundColor: color } : {}}
                   />
                 ))}
               </div>
@@ -2327,7 +2700,7 @@ export default function Documents() {
               
               <div className="max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                 {allTags.length === 0 ? (
-                  <div className="py-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  <div className="py-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-border">
                     <TagIcon className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                     <p className="text-xs font-medium text-slate-400">Nenhuma etiqueta criada ainda</p>
                   </div>
@@ -2342,8 +2715,8 @@ export default function Documents() {
                           className={cn(
                             "group flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm",
                             isAssigned 
-                              ? "bg-[#1a355b] border-[#1a355b] text-white hover:bg-[#10213d] shadow-blue-500/10" 
-                              : "bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:bg-blue-50/30"
+                              ? "bg-primary border-primary text-white hover:bg-primary/90 shadow-blue-500/10" 
+                              : "bg-white border-border text-slate-600 hover:border-blue-200 hover:bg-blue-50/30"
                           )}
                         >
                           <span 
@@ -2419,7 +2792,7 @@ export default function Documents() {
                 type="password"
                 value={confidentialPassword}
                 onChange={(e) => setConfidentialPassword(e.target.value)}
-                className="h-12 bg-white border-slate-200 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/10 transition-all"
+                className="h-12 bg-white border-border rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/10 transition-all"
                 placeholder="Digite a senha"
                 autoFocus
               />
@@ -2436,7 +2809,7 @@ export default function Documents() {
               <Button 
                 type="submit"
                 disabled={!confidentialPassword.trim()}
-                className="px-8 font-bold h-12 rounded-xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm bg-[#1a355b] hover:bg-[#10213d] text-white"
+                className="px-8 font-bold h-12 rounded-xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm bg-primary hover:bg-primary/90 text-white"
               >
                 Confirmar
               </Button>
@@ -2496,10 +2869,10 @@ export default function Documents() {
       {/* Modal de Renomeação */}
       <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
         <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-8 border-b border-slate-100/80 relative">
+          <div className="p-8 border-b border-border/80 relative">
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2 rounded-xl bg-blue-50">
-                <Pencil className="h-6 w-6 text-[#1a355b]" />
+                <Pencil className="h-6 w-6 text-primary" />
               </div>
               <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Renomear</DialogTitle>
             </div>
@@ -2518,7 +2891,7 @@ export default function Documents() {
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
                 placeholder="Digite o novo nome..."
-                className="h-12 pl-4 rounded-xl border-slate-200 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-semibold text-slate-900 text-sm placeholder:text-slate-400"
+                className="h-12 pl-4 rounded-xl border-border bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-semibold text-slate-900 text-sm placeholder:text-slate-400"
                 required
                 autoFocus
               />
@@ -2539,7 +2912,7 @@ export default function Documents() {
                 className={cn(
                   "px-8 font-bold h-12 rounded-xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
                   newItemName.trim() && newItemName !== selectedItemForRename?.name
-                    ? "bg-[#1a355b] hover:bg-[#10213d] text-white" 
+                    ? "bg-primary hover:bg-primary/90 text-white" 
                     : "bg-slate-100 text-slate-400 cursor-not-allowed"
                 )}
               >
@@ -2566,11 +2939,11 @@ export default function Documents() {
           {isDesktop ? (
             <div className="flex flex-col h-full bg-white">
               {/* Header Elegante Desktop */}
-              <div className="p-8 border-b border-slate-50 relative shrink-0">
+              <div className="p-8 border-b border-border relative shrink-0">
                 <div className="flex items-center justify-between relative z-10">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
-                      <Plus className="h-7 w-7 text-[#1a355b]" />
+                      <Plus className="h-7 w-7 text-primary" />
                     </div>
                     <div>
                       <SheetTitle className="text-2xl font-black text-slate-900 tracking-tight">Criar Novo</SheetTitle>
@@ -2587,11 +2960,11 @@ export default function Documents() {
                     setIsMobileActionSheetOpen(false);
                     setIsCreateFolderOpen(true);
                   }}
-                  className="w-full flex items-center gap-6 p-6 rounded-2xl bg-white border border-slate-100 hover:border-[#1a355b] hover:shadow-xl hover:shadow-blue-900/5 transition-all group relative overflow-hidden text-left"
+                  className="w-full flex items-center gap-6 p-6 rounded-2xl bg-white border border-border hover:border-primary hover:shadow-xl hover:shadow-blue-900/5 transition-all group relative overflow-hidden text-left"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/30 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150" />
-                  <div className="w-16 h-16 rounded-xl bg-blue-50 flex items-center justify-center text-[#1a355b] group-hover:scale-110 transition-transform relative z-10">
-                    <Folder className="h-8 w-8 fill-[#1a355b]/10" />
+                  <div className="w-16 h-16 rounded-xl bg-blue-50 flex items-center justify-center text-primary group-hover:scale-110 transition-transform relative z-10">
+                    <FolderClosed className="h-8 w-8 fill-primary/10" />
                   </div>
                   <div className="relative z-10">
                     <span className="block text-lg font-bold text-slate-800">Nova Pasta</span>
@@ -2604,10 +2977,10 @@ export default function Documents() {
                     setIsMobileActionSheetOpen(false);
                     setIsUploadOpen(true);
                   }}
-                  className="w-full flex items-center gap-6 p-6 rounded-2xl bg-white border border-slate-100 hover:border-[#1a355b] hover:shadow-xl hover:shadow-blue-900/5 transition-all group relative overflow-hidden text-left"
+                  className="w-full flex items-center gap-6 p-6 rounded-2xl bg-white border border-border hover:border-primary hover:shadow-xl hover:shadow-blue-900/5 transition-all group relative overflow-hidden text-left"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50/30 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-150" />
-                  <div className="w-16 h-16 rounded-xl bg-blue-50 flex items-center justify-center text-[#1a355b] group-hover:scale-110 transition-transform relative z-10">
+                  <div className="w-16 h-16 rounded-xl bg-blue-50 flex items-center justify-center text-primary group-hover:scale-110 transition-transform relative z-10">
                     <CloudUpload className="h-8 w-8" />
                   </div>
                   <div className="relative z-10">
@@ -2618,11 +2991,11 @@ export default function Documents() {
               </div>
 
               {/* Footer Desktop */}
-              <div className="p-8 border-t border-slate-50 bg-slate-50/30">
+              <div className="p-8 border-t border-border bg-slate-50/30">
                 <Button 
                   variant="outline" 
                   onClick={() => setIsMobileActionSheetOpen(false)}
-                  className="w-full h-12 rounded-xl font-bold text-slate-500 hover:text-slate-700 hover:bg-white transition-all border-slate-200 hidden"
+                  className="w-full h-12 rounded-xl font-bold text-slate-500 hover:text-slate-700 hover:bg-white transition-all border-border hidden"
                 >
                   Fechar
                 </Button>
@@ -2630,7 +3003,7 @@ export default function Documents() {
             </div>
           ) : (
             <>
-              <div className="p-8 border-b border-slate-50">
+              <div className="p-8 border-b border-border">
                 <SheetHeader className="text-left">
                   <SheetTitle className="text-xl font-bold text-slate-900">Ações Rápidas</SheetTitle>
                   <p className="text-xs font-medium text-slate-500 mt-1">O que você deseja fazer agora?</p>
@@ -2644,8 +3017,8 @@ export default function Documents() {
                   }}
                   className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-blue-50/50 border border-blue-100/50 hover:bg-blue-50 transition-all active:scale-95 group"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#1a355b] group-hover:scale-110 transition-transform">
-                    <Folder className="h-6 w-6 fill-[#1a355b]/10" />
+                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <FolderClosed className="h-6 w-6 fill-primary/10" />
                   </div>
                   <span className="text-sm font-bold text-slate-700">Nova Pasta</span>
                 </button>
@@ -2656,7 +3029,7 @@ export default function Documents() {
                   }}
                   className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl bg-blue-50/50 border border-blue-100/50 hover:bg-blue-50 transition-all active:scale-95 group"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#1a355b] group-hover:scale-110 transition-transform">
+                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                     <CloudUpload className="h-6 w-6" />
                   </div>
                   <span className="text-sm font-bold text-slate-700">Fazer Upload</span>
@@ -2679,7 +3052,7 @@ export default function Documents() {
       {/* Modal de Histórico de Versões */}
       <Dialog open={isVersionHistoryOpen} onOpenChange={setIsVersionHistoryOpen}>
         <DialogContent className="w-[95vw] sm:max-w-[600px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-8 border-b border-slate-100/80 relative">
+          <div className="p-8 border-b border-border/80 relative">
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2 rounded-xl bg-purple-50">
                 <History className="h-6 w-6 text-purple-600" />
@@ -2698,7 +3071,7 @@ export default function Documents() {
                 <p className="text-sm font-medium text-slate-400">Carregando histórico...</p>
               </div>
             ) : documentVersions.length === 0 ? (
-              <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+              <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-border">
                 <History className="h-10 w-10 text-slate-200 mx-auto mb-4" />
                 <h3 className="text-slate-900 font-bold text-lg tracking-tight">Sem histórico</h3>
                 <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
@@ -2714,7 +3087,7 @@ export default function Documents() {
                       "group flex items-center justify-between p-4 rounded-2xl border transition-all",
                       idx === 0 
                         ? "bg-purple-50/30 border-purple-100 ring-1 ring-purple-100" 
-                        : "bg-white border-slate-100 hover:border-purple-200 hover:shadow-md hover:shadow-purple-900/5"
+                        : "bg-white border-border hover:border-purple-200 hover:shadow-md hover:shadow-purple-900/5"
                     )}
                   >
                     <div className="flex items-center gap-4">
@@ -2742,7 +3115,7 @@ export default function Documents() {
                           {formatDate(version.created_at)} • por {version.created_by || 'Sistema'}
                         </p>
                         {version.change_summary && (
-                          <p className="text-[11px] text-slate-400 italic mt-1 bg-white/50 p-1.5 rounded-lg border border-slate-50">
+                          <p className="text-[11px] text-slate-400 italic mt-1 bg-white/50 p-1.5 rounded-lg border border-border">
                             "{version.change_summary}"
                           </p>
                         )}
@@ -2799,8 +3172,11 @@ export default function Documents() {
           ocrText={viewerDoc.ocr_text}
           ocrProcessedAt={viewerDoc.ocr_processed_at}
           onClose={() => {
-            window.URL.revokeObjectURL(viewerDoc.url);
+            if (viewerDoc?.url) {
+              window.URL.revokeObjectURL(viewerDoc.url);
+            }
             setViewerDoc(null);
+            lastOpenedId.current = null;
             if (id) navigate('/documents', { replace: true });
           }}
         />

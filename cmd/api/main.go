@@ -63,6 +63,25 @@ func main() {
 
 	jwtService := service.NewJWTService()
 
+	// Sincronizar chaves do Vault para tenants existentes
+	if vaultService != nil {
+		var tenantIDs []string
+		rows, err := db.Conn.Query("SELECT id FROM tenants")
+		if err == nil {
+			for rows.Next() {
+				var id string
+				if err := rows.Scan(&id); err == nil {
+					tenantIDs = append(tenantIDs, id)
+				}
+			}
+			rows.Close()
+			if len(tenantIDs) > 0 {
+				log.Printf("Sincronizando %d chaves de tenants no Vault...", len(tenantIDs))
+				vaultService.SyncTenantKeys(context.Background(), tenantIDs)
+			}
+		}
+	}
+
 	storageService, errS := service.NewStorageService()
 	if errS != nil {
 		log.Fatalf("Erro ao inicializar MinIO: %v", errS)
@@ -126,6 +145,7 @@ func main() {
 	// Handlers
 	tenantHandler := handlers.NewTenantHandler(db, securityService, vaultService, jwtService, redisService)
 	documentHandler := handlers.NewDocumentHandler(db, storageService, vaultService, redisService, securityService, openSearchService)
+	contractHandler := handlers.NewContractHandler(db, storageService, vaultService, redisService, securityService, openSearchService)
 	adminHandler := handlers.NewAdminHandler(db, securityService, jwtService)
 	sectorHandler := handlers.NewSectorHandler(db)
 	userHandler := handlers.NewUserHandler(db, securityService)
@@ -219,6 +239,7 @@ func main() {
 				r.Get("/download/{id}", documentHandler.Download)
 				r.Post("/{id}/ocr", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.UpdateOCR)).ServeHTTP)
 				r.Patch("/{id}/rename", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.Rename)).ServeHTTP)
+				r.Patch("/{id}/move", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.Move)).ServeHTTP)
 				r.Delete("/{id}", apiMiddleware.RBACMiddleware(db, "DELETE")(http.HandlerFunc(documentHandler.Delete)).ServeHTTP)
 				r.Patch("/{id}/status", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(documentHandler.UpdateStatus)).ServeHTTP)
 
@@ -239,6 +260,41 @@ func main() {
 				r.Delete("/{id}/tags/{tagId}", documentHandler.UnassignTag)
 
 				r.Post("/{id}/share-link", apiMiddleware.RBACMiddleware(db, "SHARE")(http.HandlerFunc(documentHandler.CreateShareLink)).ServeHTTP)
+			})
+
+			r.Route("/contracts", func(r chi.Router) {
+				r.Get("/", contractHandler.List)
+				r.Get("/{id}", contractHandler.Get)
+				r.Post("/", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(contractHandler.Create)).ServeHTTP)
+				r.Put("/{id}", apiMiddleware.RBACMiddleware(db, "WRITE")(http.HandlerFunc(contractHandler.Update)).ServeHTTP)
+				r.Delete("/{id}", apiMiddleware.RBACMiddleware(db, "DELETE")(http.HandlerFunc(contractHandler.Delete)).ServeHTTP)
+				r.Get("/templates", contractHandler.ListTemplates)
+				r.Post("/templates", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_TEMPLATES")(http.HandlerFunc(contractHandler.CreateTemplate)).ServeHTTP)
+				r.Put("/templates/{templateId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_TEMPLATES")(http.HandlerFunc(contractHandler.UpdateTemplate)).ServeHTTP)
+				r.Delete("/templates/{templateId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_TEMPLATES")(http.HandlerFunc(contractHandler.DeleteTemplate)).ServeHTTP)
+				r.Post("/{id}/templates/{templateId}/generate", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_TEMPLATES")(http.HandlerFunc(contractHandler.GenerateFromTemplate)).ServeHTTP)
+				r.Get("/workflows", contractHandler.ListWorkflows)
+				r.Post("/workflows", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_WORKFLOWS")(http.HandlerFunc(contractHandler.CreateWorkflow)).ServeHTTP)
+				r.Put("/workflows/{workflowId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_WORKFLOWS")(http.HandlerFunc(contractHandler.UpdateWorkflow)).ServeHTTP)
+				r.Delete("/workflows/{workflowId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_WORKFLOWS")(http.HandlerFunc(contractHandler.DeleteWorkflow)).ServeHTTP)
+				r.Patch("/{id}/workflow", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_WORKFLOWS")(http.HandlerFunc(contractHandler.AssignWorkflow)).ServeHTTP)
+				r.Post("/{id}/workflow/start", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_WORKFLOWS")(http.HandlerFunc(contractHandler.StartWorkflow)).ServeHTTP)
+				r.Get("/approvals/pending", apiMiddleware.RBACMiddleware(db, "APPROVE_CONTRACTS")(http.HandlerFunc(contractHandler.ListPendingApprovals)).ServeHTTP)
+				r.Get("/{id}/approvals", contractHandler.ListApprovals)
+				r.Post("/{id}/approvals/{approvalId}", apiMiddleware.RBACMiddleware(db, "APPROVE_CONTRACTS")(http.HandlerFunc(contractHandler.DecideApproval)).ServeHTTP)
+				r.Get("/{id}/obligations", contractHandler.ListObligations)
+				r.Post("/{id}/obligations", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_OBLIGATIONS")(http.HandlerFunc(contractHandler.CreateObligation)).ServeHTTP)
+				r.Put("/{id}/obligations/{obligationId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_OBLIGATIONS")(http.HandlerFunc(contractHandler.UpdateObligation)).ServeHTTP)
+				r.Delete("/{id}/obligations/{obligationId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_OBLIGATIONS")(http.HandlerFunc(contractHandler.DeleteObligation)).ServeHTTP)
+				r.Get("/obligations/alerts", contractHandler.ListObligationAlerts)
+				r.Get("/{id}/signatures", contractHandler.ListSignatures)
+				r.Post("/{id}/signatures", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_SIGNATURES")(http.HandlerFunc(contractHandler.CreateSignature)).ServeHTTP)
+				r.Patch("/{id}/signatures/{signatureId}", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_SIGNATURES")(http.HandlerFunc(contractHandler.UpdateSignature)).ServeHTTP)
+				r.Post("/{id}/upload-signed", apiMiddleware.RBACMiddleware(db, "MANAGE_CONTRACT_SIGNATURES")(http.HandlerFunc(contractHandler.UploadSignedContract)).ServeHTTP)
+				r.Get("/notifications", contractHandler.ListNotifications)
+				r.Patch("/notifications/{notificationId}/read", contractHandler.MarkNotificationRead)
+				r.Get("/analytics", apiMiddleware.RBACMiddleware(db, "VIEW_CONTRACT_ANALYTICS")(http.HandlerFunc(contractHandler.Analytics)).ServeHTTP)
+				r.Get("/analytics/export", apiMiddleware.RBACMiddleware(db, "VIEW_CONTRACT_ANALYTICS")(http.HandlerFunc(contractHandler.AnalyticsExport)).ServeHTTP)
 			})
 
 			r.Post("/documents/{id}/share", apiMiddleware.RBACMiddleware(db, "SHARE")(http.HandlerFunc(documentHandler.Share)).ServeHTTP)

@@ -231,7 +231,7 @@ export default function SharedDocuments() {
                 {doc.document_type && (
                   <>
                     <div className="w-1 h-1 rounded-full bg-slate-300" />
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-border/50">
                       {doc.document_type}
                     </span>
                   </>
@@ -372,7 +372,7 @@ export default function SharedDocuments() {
               if (searchInput) searchInput.focus();
               toast.info("Use o campo de busca para filtrar por nome.");
             }}
-            className="bg-white border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl h-11 px-5 font-semibold transition-all duration-300 shadow-sm"
+            className="bg-white border-border text-slate-600 hover:bg-slate-50 rounded-xl h-11 px-5 font-semibold transition-all duration-300 shadow-sm"
           >
             <Filter className="h-4 w-4 mr-2" />
             Filtrar
@@ -382,7 +382,7 @@ export default function SharedDocuments() {
               toast.info("Selecione um arquivo na página de Documentos para compartilhar.");
               navigate('/documents');
             }}
-            className="bg-[#1a355b] hover:bg-[#152b4a] text-white rounded-xl h-11 px-5 font-semibold transition-all duration-300 shadow-lg shadow-blue-900/10"
+            className="bg-primary hover:bg-primary/90 text-white rounded-xl h-11 px-5 font-semibold transition-all duration-300 shadow-lg shadow-blue-900/10"
           >
             <Share2 className="h-4 w-4 mr-2" />
             Compartilhar novo
@@ -434,7 +434,7 @@ export default function SharedDocuments() {
 
       {/* Content */}
       <Card className="border-none shadow-sm bg-white rounded-[24px] overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 sm:p-6 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="relative w-full sm:w-80 group">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
             <Input 
@@ -483,7 +483,7 @@ export default function SharedDocuments() {
                 </TableRow>
               ) : (
                 filteredDocs.map((doc) => (
-                  <TableRow key={doc.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0 group">
+                  <TableRow key={doc.id} className="hover:bg-slate-50/50 transition-colors border-b border-border last:border-0 group">
                     <TableCell className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className={cn(
@@ -503,7 +503,7 @@ export default function SharedDocuments() {
                           <div className="flex items-center gap-2">
                             <p className="text-[10px] font-bold text-slate-400">{formatSize(doc.size)}</p>
                             {doc.document_type && (
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-border/50">
                                 {doc.document_type}
                               </span>
                             )}
@@ -556,12 +556,12 @@ export default function SharedDocuments() {
                     <TableCell className="px-6 py-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all duration-300 border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all duration-300 border border-transparent hover:border-border shadow-sm hover:shadow-md">
                             <MoreVertical className="h-5 w-5" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-slate-100 bg-white animate-in fade-in zoom-in-95 duration-200">
-                            <div className="px-2 py-1.5 mb-1 border-b border-slate-50">
+                        <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-xl border-border bg-white animate-in fade-in zoom-in-95 duration-200">
+                            <div className="px-2 py-1.5 mb-1 border-b border-border">
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Opções</p>
                             </div>
 
@@ -635,7 +635,7 @@ export default function SharedDocuments() {
                                     setSelectedDoc(doc);
                                     setIsShareModalOpen(true);
                                   }}
-                                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-[#1a355b] hover:bg-blue-50 transition-all cursor-pointer group"
+                                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:text-primary hover:bg-blue-50 transition-all cursor-pointer group"
                                 >
                                   <div className="w-8 h-8 rounded-lg bg-blue-50/50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                                     <Share2 className="h-4 w-4 text-blue-500" />
@@ -665,7 +665,7 @@ export default function SharedDocuments() {
               <p className="text-slate-500 font-medium text-sm">Carregando...</p>
             </div>
           ) : filteredDocs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <div className="flex flex-col items-center justify-center py-12 gap-3 bg-slate-50 rounded-2xl border-2 border-dashed border-border">
               <Share2 className="h-10 w-10 text-slate-300" />
               <p className="text-slate-500 font-medium text-sm text-center px-6">Nenhum documento compartilhado encontrado.</p>
             </div>
@@ -676,12 +676,12 @@ export default function SharedDocuments() {
           )}
         </div>
         
-        <div className="p-6 border-t border-slate-50 flex items-center justify-between">
+        <div className="p-6 border-t border-border flex items-center justify-between">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
             Mostrando {filteredDocs.length} de {documents.length} resultados
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 w-9 p-0 rounded-lg border-slate-200 text-slate-600 bg-white" onClick={() => toast.info("Você já está na primeira página.")}>1</Button>
+            <Button variant="outline" size="sm" className="h-9 w-9 p-0 rounded-lg border-border text-slate-600 bg-white" onClick={() => toast.info("Você já está na primeira página.")}>1</Button>
             <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100" onClick={() => toast.info("A funcionalidade de paginação será habilitada conforme o volume de documentos crescer.")}>2</Button>
             <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100" onClick={() => toast.info("A funcionalidade de paginação será habilitada conforme o volume de documentos crescer.")}>3</Button>
           </div>
@@ -718,7 +718,7 @@ export default function SharedDocuments() {
           </div>
           
           <div className="p-6 pt-0 space-y-4">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-border space-y-2">
               <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <Clock className="h-3 w-3" />
                 Consequências
@@ -734,7 +734,7 @@ export default function SharedDocuments() {
               <Button
                 variant="outline"
                 onClick={() => setIsRevokeDialogOpen(false)}
-                className="flex-1 h-11 rounded-2xl border-slate-200 text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all"
+                className="flex-1 h-11 rounded-2xl border-border text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-all"
               >
                 Cancelar
               </Button>

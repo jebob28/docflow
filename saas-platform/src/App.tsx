@@ -2,6 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import Documents from '@/pages/Documents';
+import Contracts from '@/pages/Contracts';
+import ContractTemplates from '@/pages/ContractTemplates';
+import ContractExpirations from '@/pages/ContractExpirations';
 import SharedDocuments from '@/pages/SharedDocuments';
 import Sectors from '@/pages/Sectors';
 import AccessManagement from '@/pages/AccessManagement';
@@ -16,11 +19,44 @@ import PublicShareView from '@/pages/PublicShareView';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Toaster } from 'sonner';
 
-const isAuthenticated = () => !!localStorage.getItem('token');
+type TokenPayload = {
+  exp?: number;
+  role?: string;
+  is_master?: boolean;
+};
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const getTokenPayload = (): TokenPayload | null => {
+  const token = localStorage.getItem('token');
+  if (!token || token === 'undefined' || token === 'null') return null;
+
+  try {
+    return JSON.parse(atob(token.split('.')[1])) as TokenPayload;
+  } catch {
+    return null;
+  }
+};
+
+const isAuthenticated = () => {
+  const payload = getTokenPayload();
+  if (!payload) return false;
+  if (payload.exp && Date.now() / 1000 >= payload.exp) return false;
+  return true;
+};
+
+const canAccessRestrictedRoute = () => {
+  const payload = getTokenPayload();
+  if (!payload) return false;
+  if (payload.is_master) return true;
+  return (payload.role || '').toUpperCase() !== 'USER';
+};
+
+const ProtectedRoute = ({ children, restricted = false }: { children: React.ReactNode; restricted?: boolean }) => {
   if (!isAuthenticated()) {
+    localStorage.clear();
     return <Navigate to="/login" replace />;
+  }
+  if (restricted && !canAccessRestrictedRoute()) {
+    return <Navigate to="/dashboard" replace />;
   }
   return <DashboardLayout>{children}</DashboardLayout>;
 };
@@ -52,6 +88,33 @@ function App() {
         />
 
         <Route 
+          path="/contracts" 
+          element={
+            <ProtectedRoute>
+              <Contracts />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/contracts/templates" 
+          element={
+            <ProtectedRoute>
+              <ContractTemplates />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/contracts/expirations" 
+          element={
+            <ProtectedRoute>
+              <ContractExpirations />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
           path="/documents/view/:id" 
           element={
             <ProtectedRoute>
@@ -63,7 +126,7 @@ function App() {
         <Route 
           path="/shared" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute restricted>
               <SharedDocuments />
             </ProtectedRoute>
           } 
@@ -81,7 +144,7 @@ function App() {
         <Route 
           path="/access-management" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute restricted>
               <AccessManagement />
             </ProtectedRoute>
           } 
@@ -99,7 +162,7 @@ function App() {
         <Route 
           path="/settings" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute restricted>
               <Settings />
             </ProtectedRoute>
           } 
@@ -108,7 +171,7 @@ function App() {
         <Route 
           path="/config" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute restricted>
               <Config />
             </ProtectedRoute>
           } 

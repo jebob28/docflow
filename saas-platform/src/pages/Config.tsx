@@ -102,7 +102,7 @@ export default function Config() {
   }) => (
     <button 
       onClick={onClick}
-      className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+      className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors border-b border-border last:border-0"
     >
       <div className="flex items-center gap-4">
         <div className={`p-2.5 rounded-2xl ${bgColor} ${color}`}>
@@ -135,7 +135,7 @@ export default function Config() {
         
         <Button 
           variant="outline" 
-          className="mt-6 rounded-2xl border-slate-200 font-bold text-xs h-10 px-6 hover:bg-slate-50"
+          className="mt-6 rounded-2xl border-border font-bold text-xs h-10 px-6 hover:bg-slate-50"
           onClick={() => navigate('/profile')}
         >
           Editar Perfil

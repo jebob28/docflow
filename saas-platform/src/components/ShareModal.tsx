@@ -48,7 +48,7 @@ interface ShareModalProps {
   itemName: string;
   itemType?: 'file' | 'folder';
   isFolder?: boolean;
-  tags?: any[];
+  tags?: ShareTag[];
 }
 
 
@@ -72,6 +72,11 @@ interface ApiUser {
 interface Sector {
   id: string;
   name: string;
+}
+
+interface ShareTag {
+  name?: string | null;
+  color?: string | null;
 }
 
 export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType, isFolder = false, tags = [] }: ShareModalProps) {
@@ -313,11 +318,11 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[650px] p-0 gap-0 bg-white overflow-hidden border-none shadow-2xl h-[90vh] sm:h-auto max-h-[850px] flex flex-col rounded-2xl">
         {/* Header Elegante - Estilo Desktop Desktop */}
-        <div className="p-8 border-b border-slate-100 relative shrink-0">
+        <div className="p-8 border-b border-border relative shrink-0">
           <div className="flex items-center justify-between relative z-10">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
-                <Share2 className="h-6 w-6 text-[#1a355b]" />
+                <Share2 className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Compartilhar</DialogTitle>
@@ -330,17 +335,17 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
         </div>
 
         <Tabs defaultValue="users" className="flex-1 flex flex-col min-h-0" onValueChange={(v) => setActiveTab(v === 'sectors' || v === 'links' ? v : 'users')}>
-          <div className="px-8 py-4 border-b border-slate-50 bg-slate-50/30 shrink-0">
-            <TabsList className="w-full bg-slate-100/50 p-1 h-12 rounded-xl border border-slate-200/50">
-              <TabsTrigger value="users" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#1a355b] data-[state=active]:shadow-sm gap-2 transition-all duration-200">
+          <div className="px-8 py-4 border-b border-border bg-slate-50/30 shrink-0">
+            <TabsList className="w-full bg-slate-100/50 p-1 h-12 rounded-xl border border-border/50">
+              <TabsTrigger value="users" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm gap-2 transition-all duration-200">
                 <Users className="h-4 w-4" />
                 <span className="text-xs font-bold uppercase tracking-wider">Usuários</span>
               </TabsTrigger>
-              <TabsTrigger value="sectors" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#1a355b] data-[state=active]:shadow-sm gap-2 transition-all duration-200">
+              <TabsTrigger value="sectors" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm gap-2 transition-all duration-200">
                 <Building2 className="h-4 w-4" />
                 <span className="text-xs font-bold uppercase tracking-wider">Setores</span>
               </TabsTrigger>
-              <TabsTrigger value="links" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#1a355b] data-[state=active]:shadow-sm gap-2 transition-all duration-200">
+              <TabsTrigger value="links" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm gap-2 transition-all duration-200">
                 <Link2 className="h-4 w-4" />
                 <span className="text-xs font-bold uppercase tracking-wider">Links Públicos</span>
               </TabsTrigger>
@@ -354,10 +359,10 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Select value={selectedTargetId} onValueChange={setSelectedTargetId}>
-                    <SelectTrigger className="pl-11 h-12 bg-white border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-medium">
+                    <SelectTrigger className="pl-11 h-12 bg-white border-none rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-medium">
                       <SelectValue placeholder="Buscar usuário por nome ou email..." />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 shadow-2xl">
+                    <SelectContent className="rounded-xl border-border shadow-2xl">
                       {availableUsers.map(u => (
                         <SelectItem key={u.id} value={u.id.toString()} className="rounded-lg py-2.5">
                           <div className="flex flex-col">
@@ -371,10 +376,10 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                 </div>
                 <div className="flex gap-2">
                   <Select value={permissionType} onValueChange={(v) => setPermissionType(v === 'WRITE' ? 'WRITE' : 'READ')}>
-                    <SelectTrigger className="w-[120px] h-12 bg-white border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-bold text-slate-600">
+                    <SelectTrigger className="w-[120px] h-12 bg-white border-none rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-bold text-slate-600">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 shadow-2xl">
+                    <SelectContent className="rounded-xl border-border shadow-2xl">
                       <SelectItem value="READ" className="rounded-lg">Pode ver</SelectItem>
                       <SelectItem value="WRITE" className="rounded-lg">Pode editar</SelectItem>
                     </SelectContent>
@@ -382,7 +387,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                   <Button 
                     onClick={handleShare} 
                     disabled={loading || !selectedTargetId}
-                    className="h-12 px-6 rounded-xl bg-[#1a355b] hover:bg-[#10213d] text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-95 gap-2"
+                    className="h-12 px-6 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-95 gap-2"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                     Convidar
@@ -392,7 +397,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
 
               <div className="flex items-center justify-between mb-3 px-1">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Pessoas com acesso</h4>
-                <Badge variant="outline" className="text-[10px] font-bold text-[#1a355b] border-blue-100 bg-blue-50/50">
+                <Badge variant="outline" className="text-[10px] font-bold text-primary border-blue-100 bg-blue-50/50">
                   {shares.filter(s => s.type === 'user').length} usuários
                 </Badge>
               </div>
@@ -400,15 +405,15 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
               <ScrollArea className="flex-1 -mx-2 px-2">
                 <div className="space-y-2.5 pb-4">
                   {shares.filter(s => s.type === 'user').length === 0 ? (
-                    <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/30">
+                    <div className="py-12 text-center border-2 border-dashed border-border rounded-2xl bg-slate-50/30">
                       <Users className="h-10 w-10 text-slate-200 mx-auto mb-3" />
                       <p className="text-sm font-medium text-slate-400">Nenhum usuário convidado ainda.</p>
                     </div>
                   ) : (
                     shares.filter(s => s.type === 'user').map((share) => (
-                      <div key={share.id} className="group bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all duration-300 flex items-center justify-between">
+                      <div key={share.id} className="group bg-white p-4 rounded-xl border border-border shadow-sm hover:border-blue-200 hover:shadow-md transition-all duration-300 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100 text-[#1a355b] font-bold text-xs">
+                          <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100 text-primary font-bold text-xs">
                             {getInitials(share.target_name)}
                           </div>
                           <div className="min-w-0">
@@ -421,10 +426,10 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                             value={share.permission_type} 
                             onValueChange={(v) => handleUpdatePermission(share.id, share.type, v)}
                           >
-                            <SelectTrigger className="h-8 border-none bg-slate-100/50 hover:bg-slate-100 text-[11px] font-bold text-slate-600 rounded-lg w-[110px] transition-colors">
+                            <SelectTrigger className="h-8 border-none bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-600 rounded-lg w-[110px] transition-colors">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                            <SelectContent className="rounded-xl border-border shadow-xl">
                               <SelectItem value="READ" className="text-xs">Pode visualizar</SelectItem>
                               <SelectItem value="WRITE" className="text-xs">Pode editar</SelectItem>
                             </SelectContent>
@@ -451,10 +456,10 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Select value={selectedTargetId} onValueChange={setSelectedTargetId}>
-                    <SelectTrigger className="pl-11 h-12 bg-white border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-medium">
+                    <SelectTrigger className="pl-11 h-12 bg-white border-none rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-medium">
                       <SelectValue placeholder="Selecionar setor..." />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 shadow-2xl">
+                    <SelectContent className="rounded-xl border-border shadow-2xl">
                       {availableSectors.map(s => (
                         <SelectItem key={s.id} value={s.id} className="rounded-lg py-2.5 font-bold text-slate-700">{s.name}</SelectItem>
                       ))}
@@ -463,10 +468,10 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                 </div>
                 <div className="flex gap-2">
                   <Select value={permissionType} onValueChange={(v) => setPermissionType(v === 'WRITE' ? 'WRITE' : 'READ')}>
-                    <SelectTrigger className="w-[120px] h-12 bg-white border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-bold text-slate-600">
+                    <SelectTrigger className="w-[120px] h-12 bg-white border-none rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-bold text-slate-600">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 shadow-2xl">
+                    <SelectContent className="rounded-xl border-border shadow-2xl">
                       <SelectItem value="READ" className="rounded-lg">Pode ver</SelectItem>
                       <SelectItem value="WRITE" className="rounded-lg">Pode editar</SelectItem>
                     </SelectContent>
@@ -474,7 +479,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                   <Button 
                     onClick={handleShare} 
                     disabled={loading || !selectedTargetId}
-                    className="h-12 px-6 rounded-xl bg-[#1a355b] hover:bg-[#10213d] text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-95 gap-2"
+                    className="h-12 px-6 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-blue-900/10 transition-all active:scale-95 gap-2"
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
                     Liberar
@@ -484,7 +489,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
 
               <div className="flex items-center justify-between mb-3 px-1">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Setores com acesso</h4>
-                <Badge variant="outline" className="text-[10px] font-bold text-[#1a355b] border-blue-100 bg-blue-50/50">
+                <Badge variant="outline" className="text-[10px] font-bold text-primary border-blue-100 bg-blue-50/50">
                   {shares.filter(s => s.type === 'sector').length} setores
                 </Badge>
               </div>
@@ -492,15 +497,15 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
               <ScrollArea className="flex-1 -mx-2 px-2">
                 <div className="space-y-2.5 pb-4">
                   {shares.filter(s => s.type === 'sector').length === 0 ? (
-                    <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/30">
+                    <div className="py-12 text-center border-2 border-dashed border-border rounded-2xl bg-slate-50/30">
                       <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
                       <p className="text-sm font-medium text-slate-400">Nenhum setor vinculado ainda.</p>
                     </div>
                   ) : (
                     shares.filter(s => s.type === 'sector').map((share) => (
-                      <div key={share.id} className="group bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all duration-300 flex items-center justify-between">
+                      <div key={share.id} className="group bg-white p-4 rounded-xl border border-border shadow-sm hover:border-blue-200 hover:shadow-md transition-all duration-300 flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 text-[#1a355b]">
+                          <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 text-primary">
                             <Building2 className="h-5.5 w-5.5" />
                           </div>
                           <div>
@@ -513,10 +518,10 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                             value={share.permission_type} 
                             onValueChange={(v) => handleUpdatePermission(share.id, share.type, v)}
                           >
-                            <SelectTrigger className="h-8 border-none bg-slate-100/50 hover:bg-slate-100 text-[11px] font-bold text-slate-600 rounded-lg w-[110px] transition-colors">
+                            <SelectTrigger className="h-8 border-none bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-600 rounded-lg w-[110px] transition-colors">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                            <SelectContent className="rounded-xl border-border shadow-xl">
                               <SelectItem value="READ" className="text-xs">Pode visualizar</SelectItem>
                               <SelectItem value="WRITE" className="text-xs">Pode editar</SelectItem>
                             </SelectContent>
@@ -553,7 +558,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
               <ScrollArea className="flex-1 -mx-2 px-2">
                 <div className="space-y-3 pb-4">
                   {shares.filter(s => s.type === 'link').map((share) => (
-                    <div key={share.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <div key={share.id} className="bg-white p-4 rounded-2xl border border-border shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center border border-green-100">
@@ -579,7 +584,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                               <MoreVertical className="h-4 w-4 text-slate-400" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl border-slate-200 shadow-xl bg-white">
+                          <DropdownMenuContent align="end" className="w-48 p-1.5 rounded-xl border-border shadow-xl bg-white">
                             <DropdownMenuItem className="rounded-lg text-xs font-semibold py-2">
                               <Clock className="h-4 w-4 mr-2 opacity-60" />
                               Definir Expiração
@@ -596,7 +601,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                       </div>
                       
                       <div className="flex gap-2">
-                        <div className="flex-1 h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 flex items-center overflow-hidden">
+                        <div className="flex-1 h-10 bg-slate-50 border border-border rounded-xl px-3 flex items-center overflow-hidden">
                           <span className="text-[11px] font-medium text-slate-500 truncate">{shareLink || 'Link gerado aparecerá aqui'}</span>
                         </div>
                         <Button 
@@ -629,15 +634,15 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
               </ScrollArea>
 
               {/* Link Configuration (if no link or when generating) */}
-              <div className="mt-auto pt-4 border-t border-slate-100 space-y-3">
+              <div className="mt-auto pt-4 border-t border-border space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Expiração</Label>
                     <Select value={expiresInMinutes} onValueChange={setExpiresInMinutes}>
-                      <SelectTrigger className="h-10 bg-white border-slate-200 rounded-xl text-[11px] font-bold text-slate-700">
+                      <SelectTrigger className="h-10 bg-white border-none rounded-xl text-[11px] font-bold text-slate-700">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl border-slate-200 shadow-xl bg-white">
+                      <SelectContent className="rounded-xl border-border shadow-xl bg-white">
                         <SelectItem value="60" className="text-[11px] font-bold text-slate-700">1 HORA</SelectItem>
                         <SelectItem value="1440" className="text-[11px] font-bold text-slate-700">24 HORAS</SelectItem>
                         <SelectItem value="10080" className="text-[11px] font-bold text-slate-700">7 DIAS</SelectItem>
@@ -652,7 +657,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
                       value={linkPassword}
                       onChange={(e) => setLinkPassword(e.target.value)}
                       placeholder="Obrigatória"
-                      className="h-10 bg-white border-slate-200 rounded-xl text-[11px] font-bold text-slate-700"
+                      className="h-10 bg-white border-border rounded-xl text-[11px] font-bold text-slate-700"
                     />
                   </div>
                 </div>
@@ -662,7 +667,7 @@ export default function ShareModal({ isOpen, onClose, itemId, itemName, itemType
         </Tabs>
 
         {/* Footer info (Mobile friendly) */}
-        <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-center shrink-0">
+        <div className="p-4 bg-white border-t border-border flex items-center justify-center shrink-0">
           <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
             <Shield className="h-3 w-3" />
             Todos os acessos são criptografados e monitorados

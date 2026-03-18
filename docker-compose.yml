@@ -25,11 +25,12 @@ services:
     image: hashicorp/vault:latest
     container_name: vault
     restart: always
-    ports:
-      - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "root"
       VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_LOCAL_CONFIG: '{"storage": {"file": {"path": "/vault/file"}}, "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": 1}}, "ui": true}'
+    command: server
+    volumes:
+      - ./vault/data:/vault/file
     cap_add:
       - IPC_LOCK
     networks:
@@ -48,14 +49,14 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    container_name: postgres
+    container_name: postgres_gestaodocumento
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-gestao_documentos}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -63,7 +64,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: minio
+    container_name: minio_gestaodocumento
     restart: always
     command: server /data --console-address ":9001"
     environment:
@@ -127,3 +128,4 @@ volumes:
   redis_data:
   minio_data:
   opensearch_data:
+  vault_data:

@@ -238,7 +238,7 @@ export default function Sectors() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-slate-50 mt-2">
+        <div className="flex items-center justify-between pt-3 border-t border-border mt-2">
           <div className="flex flex-col">
             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Criado em</span>
             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
@@ -280,7 +280,7 @@ export default function Sectors() {
         {canCreate && (
           <Button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#1a355b] hover:bg-[#10213d] text-white font-bold px-6 h-12 md:h-11 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97] w-full md:w-auto"
+            className="bg-primary hover:bg-primary/90 text-white font-bold px-6 h-12 md:h-11 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97] w-full md:w-auto"
           >
             <Plus className="h-4 w-4" />
             Novo Setor
@@ -317,7 +317,7 @@ export default function Sectors() {
 
       {/* Main Content */}
       <Card className="border-none shadow-sm bg-white rounded-[24px] md:rounded-[32px] overflow-hidden">
-        <div className="p-4 md:p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 md:p-6 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="relative w-full sm:w-80 group">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
             <Input 
@@ -348,7 +348,7 @@ export default function Sectors() {
               <Button 
                 variant="outline"
                 onClick={() => setIsModalOpen(true)}
-                className="mt-6 rounded-xl border-slate-200 font-bold px-6 h-11 text-sm"
+                className="mt-6 rounded-xl border-border font-bold px-6 h-11 text-sm"
               >
                 Começar Agora
               </Button>
@@ -368,7 +368,7 @@ export default function Sectors() {
                   </TableHeader>
                   <TableBody>
                     {filteredSectors.map((sector) => (
-                      <TableRow key={sector.id} className="border-slate-50 hover:bg-slate-50/50 group transition-all duration-200">
+                      <TableRow key={sector.id} className="border-border hover:bg-slate-50/50 group transition-all duration-200">
                         <TableCell className="py-4 pl-6">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-white group-hover:shadow-sm transition-all duration-300">
@@ -443,11 +443,11 @@ export default function Sectors() {
           )}
         >
           <SheetHeader className={cn(
-            "px-8 pt-10 pb-6 border-b border-slate-50 shrink-0 relative",
+            "px-8 pt-10 pb-6 border-b border-border shrink-0 relative",
             isDesktop && "pt-12 pb-8"
           )}>
             <div className="flex items-center gap-4 relative z-10">
-              <div className="p-3.5 rounded-2xl bg-blue-50 text-[#1a355b] shadow-sm border border-blue-100/50">
+              <div className="p-3.5 rounded-2xl bg-blue-50 text-primary shadow-sm border border-blue-100/50">
                 <Building2 className="h-7 w-7" />
               </div>
               <div>
@@ -477,7 +477,7 @@ export default function Sectors() {
                   <div className="relative group">
                     <Input 
                       placeholder="Ex: Recursos Humanos" 
-                      className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-[#1a355b] transition-all font-bold text-slate-900 placeholder:text-slate-400 text-base md:text-sm pl-4 shadow-sm group-hover:bg-white"
+                      className="h-14 bg-slate-50/50 border-border rounded-2xl focus-visible:ring-4 focus-visible:ring-blue-500/5 focus-visible:border-primary transition-all font-bold text-slate-900 placeholder:text-slate-400 text-base md:text-sm pl-4 shadow-sm group-hover:bg-white"
                       value={newSector.name}
                       onChange={(e) => setNewSector(prev => ({ ...prev, name: e.target.value }))}
                       required
@@ -492,7 +492,7 @@ export default function Sectors() {
                   <div className="relative group">
                     <textarea 
                       placeholder="Descreva as responsabilidades deste setor..." 
-                      className="w-full min-h-[160px] p-4 bg-slate-50/50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-[#1a355b] transition-all font-bold text-base md:text-sm resize-none text-slate-900 placeholder:text-slate-400 shadow-sm group-hover:bg-white"
+                      className="w-full min-h-[160px] p-4 bg-slate-50/50 border border-border rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-primary transition-all font-bold text-base md:text-sm resize-none text-slate-900 placeholder:text-slate-400 shadow-sm group-hover:bg-white"
                       value={newSector.description}
                       onChange={(e) => setNewSector(prev => ({ ...prev, description: e.target.value }))}
                     />
@@ -503,7 +503,7 @@ export default function Sectors() {
           </div>
 
           <SheetFooter className={cn(
-            "px-8 py-6 border-t border-slate-50 bg-white shrink-0",
+            "px-8 py-6 border-t border-border bg-white shrink-0",
             isDesktop ? "pb-10" : "pb-8 mb-6"
           )}>
             <div className="flex flex-col w-full gap-4">
@@ -514,7 +514,7 @@ export default function Sectors() {
                 className={cn(
                   "w-full h-14 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-[0.97] flex items-center justify-center gap-3",
                   newSector.name.trim() 
-                    ? "bg-[#1a355b] hover:bg-[#10213d] text-white shadow-blue-900/10" 
+                    ? "bg-primary hover:bg-primary/90 text-white shadow-blue-900/10" 
                     : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                 )}
               >
@@ -555,7 +555,7 @@ export default function Sectors() {
       {/* Delete Modal Revert */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-8 border-b border-slate-100/80 relative">
+          <div className="p-8 border-b border-border/80 relative">
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
                 <Trash2 className="h-6 w-6" />

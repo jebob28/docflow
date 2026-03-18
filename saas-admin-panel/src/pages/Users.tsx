@@ -207,7 +207,7 @@ export default function Users() {
   return (
     <div className="space-y-6">
       <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
-        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <CardHeader className="py-4 px-4 lg:py-5 lg:px-6 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
               <User size={16} className="text-blue-600" />
@@ -222,17 +222,17 @@ export default function Users() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button size="sm" className="w-full sm:w-auto bg-[#1b254b] hover:bg-[#1b254b]/90 text-white text-[11px] h-9 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-900/10">
+              <Button size="sm" className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white text-[11px] h-9 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-900/10">
                 <UserPlus size={14} />
                 Novo Usuário
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[420px] p-0 border-none shadow-2xl bg-white overflow-hidden rounded-[32px]">
               <form onSubmit={handleCreateUser}>
-                <div className="p-8 border-b border-slate-100/80">
+                <div className="p-8 border-b border-border/80">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="p-2 rounded-xl bg-orange-50">
-                      <UserPlus className="h-6 w-6 text-[#e66a31] fill-[#e66a31]/10" />
+                    <div className="p-2 rounded-xl bg-orange-50/50">
+                      <UserPlus className="h-6 w-6 text-accent fill-accent/10" />
                     </div>
                     <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">
                       {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
@@ -250,7 +250,7 @@ export default function Users() {
                       placeholder="Ex: João Silva"
                       value={newUser.full_name}
                       onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -261,7 +261,7 @@ export default function Users() {
                       placeholder="joao@empresa.com"
                       value={newUser.email}
                       onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                      className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                       required
                     />
                   </div>
@@ -273,7 +273,7 @@ export default function Users() {
                         placeholder="••••••••"
                         value={newUser.password}
                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                        className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                         required
                       />
                     </div>
@@ -285,10 +285,10 @@ export default function Users() {
                         value={newUser.tenant_id}
                         onValueChange={(value) => setNewUser({ ...newUser, tenant_id: value })}
                       >
-                        <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus:ring-[#e66a31]/20 transition-all font-medium text-slate-900">
+                        <SelectTrigger className="h-12 bg-white border-none rounded-2xl px-4 text-sm focus:ring-accent/20 transition-all font-medium text-slate-900">
                           <SelectValue placeholder="Selecione a empresa" />
                         </SelectTrigger>
-                        <SelectContent className="rounded-2xl border-slate-100 bg-white shadow-xl">
+                        <SelectContent className="rounded-2xl border-border bg-white shadow-xl">
                           {tenants.map((tenant) => (
                             <SelectItem key={tenant.id} value={tenant.id} className="text-sm font-medium focus:bg-slate-50 rounded-xl text-slate-700">
                               {tenant.name}
@@ -304,10 +304,10 @@ export default function Users() {
                       value={newUser.role} 
                       onValueChange={(value) => setNewUser({ ...newUser, role: value })}
                     >
-                      <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus:ring-[#e66a31]/20 transition-all font-medium text-slate-900">
+                      <SelectTrigger className="h-12 bg-white border-none rounded-2xl px-4 text-sm focus:ring-accent/20 transition-all font-medium text-slate-900">
                         <SelectValue placeholder="Selecione o nível" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-slate-100 bg-white shadow-xl">
+                      <SelectContent className="rounded-2xl border-border bg-white shadow-xl">
                         <SelectItem value="ADMIN" className="text-sm font-medium focus:bg-slate-50 rounded-xl text-slate-700">Administrador SaaS</SelectItem>
                         <SelectItem value="GESTOR" className="text-sm font-medium focus:bg-slate-50 rounded-xl text-slate-700">Gestor da Empresa</SelectItem>
                         <SelectItem value="USER" className="text-sm font-medium focus:bg-slate-50 rounded-xl text-slate-700">Usuário Comum</SelectItem>
@@ -331,7 +331,7 @@ export default function Users() {
                     className={cn(
                       "px-8 font-bold h-12 rounded-2xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
                       newUser.full_name.trim() && newUser.email.trim() && (editingUser || (newUser.password.trim() && newUser.tenant_id))
-                        ? "bg-[#e66a31] hover:bg-[#d45a20] text-white shadow-orange-900/10" 
+                        ? "bg-accent hover:bg-accent/90 text-white shadow-orange-900/10" 
                         : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                     )}
                   >
@@ -369,10 +369,10 @@ export default function Users() {
                 </TableHeader>
                 <TableBody>
                   {users.map((user) => (
-                    <TableRow key={user.id} className="hover:bg-slate-50/30 transition-colors border-b border-slate-50 last:border-0">
+                    <TableRow key={user.id} className="hover:bg-slate-50/30 transition-colors border-b border-border last:border-0">
                       <TableCell className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 lg:gap-3">
-                          <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] lg:text-[12px] text-slate-600 font-bold border border-slate-200 shadow-sm shrink-0">
+                          <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] lg:text-[12px] text-slate-600 font-bold border border-border shadow-sm shrink-0">
                             {user.name.substring(0, 2).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -394,7 +394,7 @@ export default function Users() {
                         <span className={`px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-lg text-[9px] lg:text-[10px] font-bold uppercase tracking-wider border ${
                           user.is_active 
                             ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                            : "bg-slate-50 text-slate-400 border-slate-100"
+                            : "bg-slate-50 text-slate-400 border-border"
                         }`}>
                           {user.is_active ? "Ativo" : "Inativo"}
                         </span>
@@ -472,28 +472,29 @@ export default function Users() {
       <Dialog open={isResetModalOpen} onOpenChange={setIsResetModalOpen}>
         <DialogContent className="sm:max-w-[420px] p-0 border-none shadow-2xl bg-white overflow-hidden rounded-[32px]">
           <form onSubmit={handleResetPassword}>
-            <div className="p-8 border-b border-slate-100/80">
+            <div className="p-8 border-b border-border/80">
               <div className="flex items-center gap-3 mb-1">
-                <div className="p-2 rounded-xl bg-orange-50">
-                  <Key className="h-6 w-6 text-[#e66a31] fill-[#e66a31]/10" />
+                <div className="p-2 rounded-xl bg-orange-50/50">
+                  <Key className="h-6 w-6 text-accent fill-accent/10" />
                 </div>
                 <DialogTitle className="text-2xl font-bold text-slate-900 tracking-tight">Redefinir Senha</DialogTitle>
               </div>
               <DialogDescription className="text-slate-500 text-sm font-medium">
-                Defina uma nova senha para o usuário <strong className="text-slate-700">{selectedUser?.name}</strong>
+                Defina uma nova senha para <span className="font-bold text-slate-900">{selectedUser?.name}</span>
               </DialogDescription>
             </div>
 
             <div className="p-8 space-y-4">
               <div className="space-y-2">
-                <Label className="text-slate-700 text-sm font-bold ml-1 uppercase tracking-wider text-[10px]">Nova Senha Temporária</Label>
+                <Label className="text-slate-700 text-sm font-bold ml-1 uppercase tracking-wider text-[10px]">Nova Senha</Label>
                 <Input
                   type="password"
                   placeholder="••••••••"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="h-12 bg-slate-50 border-slate-100 rounded-2xl px-4 text-sm focus-visible:ring-[#e66a31]/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                  className="h-12 bg-slate-50 border-border rounded-2xl px-4 text-sm focus-visible:ring-accent/20 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                   required
+                  autoFocus
                 />
               </div>
             </div>
@@ -509,11 +510,11 @@ export default function Users() {
               </Button>
               <Button 
                 type="submit" 
-                disabled={isResetting}
+                disabled={isResetting || !newPassword.trim()}
                 className={cn(
                   "px-8 font-bold h-12 rounded-2xl shadow-lg transition-all active:scale-[0.97] flex items-center justify-center gap-2 text-sm",
                   newPassword.trim() 
-                    ? "bg-[#e66a31] hover:bg-[#d45a20] text-white shadow-orange-900/10" 
+                    ? "bg-accent hover:bg-accent/90 text-white shadow-orange-900/10" 
                     : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                 )}
               >

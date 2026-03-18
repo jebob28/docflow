@@ -169,7 +169,7 @@ const RecentFileCard = ({ item, icon: Icon, color, onShare, onDownload, onDelete
 
   return (
     <Card 
-      className="border-none shadow-sm bg-white rounded-2xl hover:shadow-xl transition-all duration-300 cursor-pointer group border border-transparent hover:border-slate-100"
+      className="border-none shadow-sm bg-white rounded-2xl hover:shadow-xl transition-all duration-300 cursor-pointer group border border-transparent hover:border-border"
       onClick={() => navigate(`/documents/view/${item.id}`)}
     >
       <CardContent className="p-4 sm:p-5">
@@ -179,7 +179,7 @@ const RecentFileCard = ({ item, icon: Icon, color, onShare, onDownload, onDelete
               <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             {item.document_type && (
-              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50 w-fit">
+              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-border/50 w-fit">
                 {item.document_type}
               </span>
             )}
@@ -193,7 +193,7 @@ const RecentFileCard = ({ item, icon: Icon, color, onShare, onDownload, onDelete
                 <MoreHorizontal className="h-5 w-5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl border-slate-100 p-1.5 animate-in fade-in zoom-in-95 duration-200 bg-white">
+            <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl border-border p-1.5 animate-in fade-in zoom-in-95 duration-200 bg-white">
               <DropdownMenuItem 
                 className="flex items-center gap-2.5 py-2.5 px-3 cursor-pointer text-slate-600 focus:text-blue-600 focus:bg-blue-50 rounded-xl transition-colors"
                 onClick={(e) => {
@@ -243,14 +243,14 @@ const RecentFileCard = ({ item, icon: Icon, color, onShare, onDownload, onDelete
               </div>
             ))}
             {item.tags.length > 2 && (
-              <div className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-slate-50 text-slate-400 border border-slate-100">
+              <div className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-slate-50 text-slate-400 border border-border">
                 +{item.tags.length - 2}
               </div>
             )}
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-50">
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{formatDate(item.created_at)}</p>
           <span className="text-[10px] font-black text-slate-600 bg-slate-50 px-2 py-0.5 rounded-md">{formatSize(item.size)}</span>
         </div>
@@ -304,7 +304,7 @@ export default function Dashboard() {
               'PDF': { color: 'bg-rose-500', hex: '#f43f5e' },
               'Planilhas': { color: 'bg-emerald-500', hex: '#10b981' },
               'Imagens': { color: 'bg-purple-500', hex: '#a855f7' },
-              'Docs': { color: 'bg-blue-500', hex: '#3b82f6' },
+              'Docs': { color: 'bg-primary', hex: 'var(--color-primary)' },
               'Outros': { color: 'bg-slate-400', hex: '#94a3b8' }
             };
             
@@ -411,7 +411,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1a355b]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -446,7 +446,7 @@ export default function Dashboard() {
       { label: 'PDF', count: counts.pdf, color: 'bg-rose-500', hex: '#f43f5e' },
       { label: 'Planilhas', count: counts.spreadsheets, color: 'bg-emerald-500', hex: '#10b981' },
       { label: 'Imagens', count: counts.images, color: 'bg-purple-500', hex: '#a855f7' },
-      { label: 'Docs', count: counts.documents, color: 'bg-blue-500', hex: '#3b82f6' },
+      { label: 'Docs', count: counts.documents, color: 'bg-primary', hex: 'var(--color-primary)' },
       { label: 'Outros', count: counts.others, color: 'bg-slate-400', hex: '#94a3b8' }
     ];
     return data.filter((item) => item.count > 0);
@@ -528,7 +528,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-slate-800 text-sm truncate">{alert.name}</h3>
                       {alert.document_type && (
-                        <span className="px-1.5 py-0.5 rounded bg-white/50 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-slate-200/50">
+                        <span className="px-1.5 py-0.5 rounded bg-white/50 text-slate-500 text-[8px] font-black uppercase tracking-widest border border-border/50">
                           {alert.document_type}
                         </span>
                       )}
@@ -566,7 +566,7 @@ export default function Dashboard() {
                 <span>{formatSize(usedStorage)} em uso</span>
                 <span>{formatSize(maxStorage)} total</span>
               </div>
-              <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden p-1 border border-slate-200/50">
+              <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden p-1 border border-border/50">
                 <div 
                   className={cn(
                     "h-full rounded-full transition-all duration-1000 ease-out shadow-sm",
@@ -577,7 +577,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-50">
+            <div className="pt-6 border-t border-border">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center sm:text-left">Distribuição por Tipo</p>
               <div className="flex flex-col sm:flex-row items-center gap-8 sm:gap-8">
                 <div className="h-48 w-48 sm:h-44 sm:w-44 shrink-0 relative">
@@ -617,12 +617,12 @@ export default function Dashboard() {
                 </div>
                 <div className="flex-1 grid grid-cols-2 sm:grid-cols-1 gap-2.5 sm:gap-3.5 w-full">
                   {finalFileTypeStats.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between group bg-slate-50/50 p-2.5 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                    <div key={idx} className="flex items-center justify-between group bg-slate-50/50 p-2.5 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-border">
                       <div className="flex items-center gap-2.5">
                         <div className={cn("w-2.5 h-2.5 rounded-full shadow-sm", item.color)} />
                         <span className="text-[10px] sm:text-xs font-bold text-slate-600 group-hover:text-slate-900 transition-colors">{item.label}</span>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-black text-slate-400 bg-white px-2 py-0.5 rounded-lg border border-slate-100 shadow-sm">{item.count}</span>
+                      <span className="text-[10px] sm:text-xs font-black text-slate-400 bg-white px-2 py-0.5 rounded-lg border border-border shadow-sm">{item.count}</span>
                     </div>
                   ))}
                 </div>
@@ -679,7 +679,7 @@ export default function Dashboard() {
                   />
                   <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                      <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={1} />
                       <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.8} />
                     </linearGradient>
                   </defs>
@@ -738,7 +738,7 @@ export default function Dashboard() {
           <Card className="border-none shadow-sm bg-white rounded-3xl overflow-hidden">
             <CardContent className="p-6 sm:p-8 space-y-5">
               {finalTopTags.length > 0 ? finalTopTags.map((tag, idx) => (
-                <div key={idx} className="flex items-center justify-between group cursor-pointer bg-slate-50/50 hover:bg-slate-50 p-3 rounded-2xl transition-all border border-transparent hover:border-slate-100">
+                <div key={idx} className="flex items-center justify-between group cursor-pointer bg-slate-50/50 hover:bg-slate-50 p-3 rounded-2xl transition-all border border-transparent hover:border-border">
                   <div className="flex items-center gap-4">
                     <div 
                       className="w-11 h-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm bg-white"
@@ -751,12 +751,12 @@ export default function Dashboard() {
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{tag.count} arquivos</p>
                     </div>
                   </div>
-                  <div className="p-1.5 rounded-lg bg-white shadow-sm border border-slate-100">
+                  <div className="p-1.5 rounded-lg bg-white shadow-sm border border-border">
                     <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-600 transition-all group-hover:translate-x-0.5" />
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-10 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                <div className="text-center py-10 bg-slate-50/50 rounded-2xl border border-dashed border-border">
                   <p className="text-sm font-bold text-slate-400">Nenhuma etiqueta em uso</p>
                 </div>
               )}

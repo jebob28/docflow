@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS notifications;
+DELETE FROM role_permissions WHERE permission_id IN (SELECT id FROM permissions WHERE name IN (
+    'MANAGE_CONTRACT_TEMPLATES',
+    'MANAGE_CONTRACT_WORKFLOWS',
+    'APPROVE_CONTRACTS',
+    'MANAGE_CONTRACT_OBLIGATIONS',
+    'MANAGE_CONTRACT_SIGNATURES',
+    'VIEW_CONTRACT_ANALYTICS'
+));
+DELETE FROM permissions WHERE name IN (
+    'MANAGE_CONTRACT_TEMPLATES',
+    'MANAGE_CONTRACT_WORKFLOWS',
+    'APPROVE_CONTRACTS',
+    'MANAGE_CONTRACT_OBLIGATIONS',
+    'MANAGE_CONTRACT_SIGNATURES',
+    'VIEW_CONTRACT_ANALYTICS'
+);
+DROP TABLE IF EXISTS contract_signatures;
+DROP TABLE IF EXISTS contract_obligations;
+DROP TABLE IF EXISTS contract_approvals;
+ALTER TABLE contracts DROP COLUMN IF EXISTS renewed_until;
+ALTER TABLE contracts DROP COLUMN IF EXISTS renewal_period_months;
+ALTER TABLE contracts DROP COLUMN IF EXISTS renewal_notice_days;
+ALTER TABLE contracts DROP COLUMN IF EXISTS auto_renew;
+ALTER TABLE contracts DROP COLUMN IF EXISTS workflow_id;
+DROP TABLE IF EXISTS contract_workflow_steps;
+DROP TABLE IF EXISTS contract_workflows;
+DROP TABLE IF EXISTS contract_template_versions;
+DROP TABLE IF EXISTS contract_templates;

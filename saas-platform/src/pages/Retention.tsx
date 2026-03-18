@@ -219,14 +219,14 @@ export default function Retention() {
             variant="outline"
             onClick={runRetentionWorker}
             disabled={isWorkerRunning}
-            className="border-slate-200 text-slate-600 font-bold px-4 h-11 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+            className="border-border text-slate-600 font-bold px-4 h-11 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
           >
             {isWorkerRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             Executar Retenção
           </Button>
           <Button 
             onClick={openCreateModal}
-            className="bg-[#1a355b] hover:bg-[#10213d] text-white font-bold px-6 h-11 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
+            className="bg-primary hover:bg-primary/90 text-white font-bold px-6 h-11 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
           >
             <Plus className="h-4 w-4" />
             Novo Tipo
@@ -237,7 +237,7 @@ export default function Retention() {
       {/* Search and Content */}
       <Card className="border-none shadow-sm bg-white rounded-3xl overflow-hidden">
         <CardContent className="p-0">
-          <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-6 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input 
@@ -259,7 +259,7 @@ export default function Retention() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-transparent border-slate-50">
+                <TableRow className="hover:bg-transparent border-border">
                   <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 h-14">Tipo de Documento</TableHead>
                   <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 h-14">Prazo de Guarda</TableHead>
                   <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 h-14">Destino Final</TableHead>
@@ -288,7 +288,7 @@ export default function Retention() {
                   </TableRow>
                 ) : (
                   filteredDocTypes.map((type) => (
-                    <TableRow key={type.id} className="group hover:bg-slate-50/50 transition-colors border-slate-50">
+                    <TableRow key={type.id} className="group hover:bg-slate-50/50 transition-colors border-border">
                       <TableCell className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="p-2.5 rounded-xl bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all duration-300">
@@ -357,7 +357,7 @@ export default function Retention() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[450px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
           <form onSubmit={handleSubmit}>
-            <DialogHeader className="p-8 bg-[#1a355b] text-white">
+            <DialogHeader className="p-8 bg-primary text-white">
               <DialogTitle className="text-2xl font-black tracking-tight">
                 {editingType ? 'Editar Tipo de Documento' : 'Novo Tipo de Documento'}
               </DialogTitle>
@@ -384,10 +384,10 @@ export default function Retention() {
                     value={String(formData.retention_years)} 
                     onValueChange={(v) => setFormData({...formData, retention_years: Number(v)})}
                   >
-                    <SelectTrigger className="h-12 bg-slate-50 border-none rounded-2xl px-4 focus:ring-1 focus:ring-blue-100 font-bold text-slate-900">
+                    <SelectTrigger className="h-12 bg-white border-none rounded-2xl px-4 focus:ring-1 focus:ring-blue-100 font-bold text-slate-900">
                       <SelectValue placeholder="Anos" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-slate-100">
+                    <SelectContent className="rounded-2xl border-border bg-white">
                       <SelectItem value="1">1 Ano</SelectItem>
                       <SelectItem value="2">2 Anos</SelectItem>
                       <SelectItem value="5">5 Anos</SelectItem>
@@ -404,10 +404,10 @@ export default function Retention() {
                     value={formData.final_destination} 
                     onValueChange={(v) => setFormData({...formData, final_destination: v})}
                   >
-                    <SelectTrigger className="h-12 bg-slate-50 border-none rounded-2xl px-4 focus:ring-1 focus:ring-blue-100 font-bold text-slate-900">
+                    <SelectTrigger className="h-12 bg-white border-none rounded-2xl px-4 focus:ring-1 focus:ring-blue-100 font-bold text-slate-900">
                       <SelectValue placeholder="Destino" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-slate-100">
+                    <SelectContent className="rounded-2xl border-border bg-white">
                       <SelectItem value="EXPURGO">Descarte</SelectItem>
                       <SelectItem value="PERMANENTE">Permanente</SelectItem>
                     </SelectContent>
@@ -428,7 +428,7 @@ export default function Retention() {
               <Button 
                 type="submit" 
                 disabled={isProcessing}
-                className="bg-[#1a355b] hover:bg-[#10213d] text-white font-bold h-12 rounded-2xl flex-1 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
+                className="bg-primary hover:bg-primary/90 text-white font-bold h-12 rounded-2xl flex-1 shadow-lg shadow-blue-900/10 transition-all active:scale-[0.97]"
               >
                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingType ? 'Salvar Alterações' : 'Criar Tipo')}
               </Button>

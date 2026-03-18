@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -25,12 +24,8 @@ type Claims struct {
 }
 
 func NewJWTService() *JWTService {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "chave-secreta-padrao-mudar-em-producao"
-	}
 	return &JWTService{
-		secretKey: []byte(secret),
+		secretKey: []byte(getJWTSecret()),
 		issuer:    "gestao-documentos-saas",
 	}
 }

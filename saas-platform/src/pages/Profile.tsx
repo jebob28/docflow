@@ -90,7 +90,7 @@ export default function Profile() {
       </div>
 
       <Card className="border-none shadow-sm sm:shadow-md rounded-[24px] overflow-hidden">
-        <CardHeader className="pb-4 border-b border-slate-50">
+        <CardHeader className="pb-4 border-b border-border">
           <CardTitle className="text-lg font-bold">Informações Pessoais</CardTitle>
           <CardDescription className="text-xs font-medium">Esses dados serão visíveis para outros membros da sua organização.</CardDescription>
         </CardHeader>
